@@ -1,11 +1,12 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import { api, type Entry, type Hit, type InflTable, type Lang, type ReverseHit, type Suggestion } from './api'
+import { t } from './i18n'
 import LibraryPage from './LibraryPage'
 import { loadLibrary, recordVisit, toggleFavorite, useLibrary } from './library'
 import RotatingWord from './RotatingWord'
 import { HREF_LIBRARY, hrefEntry, hrefReverse, hrefSearch } from './routes'
 import SettingsPage from './SettingsPage'
-import { effectiveScheme, updateSettings, useSettings } from './settings'
+import { effectiveScheme, getSettings, updateSettings, useSettings } from './settings'
 import './App.css'
 
 type Route =
@@ -85,19 +86,38 @@ const ICON = {
   gear: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6zM19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z',
 }
 
+let randomInFlight = false
+
+/**
+ * 랜덤 단어 항목 페이지로 이동. 자주 쓰는 언어를 담아 뒀으면 그 안에서, 없으면 전체에서 뽑는다.
+ * 홈의 버튼과 R 키가 같이 쓴다. 요청이 오가는 동안의 중복 호출(키를 연타하거나 꾹 누를 때)은 무시한다.
+ */
+async function goRandom() {
+  if (randomInFlight) return
+  randomInFlight = true
+  try {
+    const r = await api.random(getSettings().preferredLangs.join(',') || undefined)
+    location.hash = hrefEntry(r.lang_code, r.word)
+  } catch {
+    // 서버 오류면 그대로 둔다
+  } finally {
+    randomInFlight = false
+  }
+}
+
 /** 탭/북마크/히스토리에서 구분되도록 화면마다 문서 제목을 바꾼다 */
 function titleFor(r: Route): string {
   switch (r.page) {
     case 'entry':
       return `${r.word} · Wiktionary`
     case 'search':
-      return r.q ? `${r.q} — 검색 · Wiktionary` : 'Personal Wiktionary'
+      return r.q ? t('title.search', { q: r.q }) : 'Personal Wiktionary'
     case 'reverse':
-      return r.q ? `정의 검색: ${r.q} · Wiktionary` : 'Personal Wiktionary'
+      return r.q ? t('title.reverse', { q: r.q }) : 'Personal Wiktionary'
     case 'settings':
-      return '설정 · Wiktionary'
+      return t('title.settings')
     case 'library':
-      return '내 단어 · Wiktionary'
+      return t('title.library')
     default:
       return 'Personal Wiktionary'
   }
@@ -113,24 +133,33 @@ export default function App() {
 
   useEffect(() => {
     document.title = titleFor(route)
-  }, [route])
+  }, [route, settings.locale]) // UI 언어를 바꾸면 제목도 다시 만든다
 
   // 즐겨찾기/기록을 서버에서 한 번 불러온다
   useEffect(() => {
     loadLibrary()
   }, [])
 
-  // '/' 를 누르면 어디서든 검색창으로 (입력 중일 때는 그대로 글자로 입력된다)
+  // 키보드 단축키 (글자를 입력하는 중이거나 Ctrl/Cmd/Alt 조합일 때는 건드리지 않는다)
+  //   /  → 검색창으로 포커스      R → 랜덤 단어로 이동
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
-      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
+      if (e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return
       const t = e.target as HTMLElement | null
       if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT' || t.isContentEditable)) return
-      const input = document.querySelector<HTMLInputElement>('.searchbar input')
-      if (!input) return
-      e.preventDefault()
-      input.focus()
-      input.select()
+
+      if (e.key === '/') {
+        const input = document.querySelector<HTMLInputElement>('.searchbar input')
+        if (!input) return
+        e.preventDefault()
+        input.focus()
+        input.select()
+      } else if (e.key.toLowerCase() === 'r' || e.code === 'KeyR') {
+        // 한글 자판에서는 R 키가 'ㄱ'으로 들어오므로 물리 키 위치(code)로도 확인한다. 꾹 눌러 반복되는 입력(repeat)은 무시.
+        if (e.repeat) return
+        e.preventDefault()
+        goRandom()
+      }
     }
     window.addEventListener('keydown', on)
     return () => window.removeEventListener('keydown', on)
@@ -148,16 +177,16 @@ export default function App() {
           <div className="top-actions">
             <button
               className="icon-btn"
-              title={dark ? '라이트 모드로' : '다크 모드로'}
-              aria-label="라이트/다크 전환"
+              title={dark ? t('theme.toLight') : t('theme.toDark')}
+              aria-label={t('theme.toggle')}
               onClick={() => updateSettings({ mode: dark ? 'light' : 'dark' })}
             >
               <Icon d={dark ? ICON.sun : ICON.moon} />
             </button>
-            <a className="icon-btn" href={HREF_LIBRARY} title="내 단어 (즐겨찾기 · 기록)" aria-label="내 단어">
+            <a className="icon-btn" href={HREF_LIBRARY} title={t('nav.libraryTitle')} aria-label={t('lib.title')}>
               <Icon d={ICON.bookmark} />
             </a>
-            <a className="icon-btn" href="#/settings" title="설정" aria-label="설정">
+            <a className="icon-btn" href="#/settings" title={t('set.title')} aria-label={t('set.title')}>
               <Icon d={ICON.gear} />
             </a>
           </div>
@@ -174,39 +203,57 @@ export default function App() {
       </main>
 
       <footer>
-        내용 출처: <a href="https://en.wiktionary.org">English Wiktionary</a> 기여자들 (
-        <a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>) · 데이터 가공:{' '}
+        {t('footer.source')} <a href="https://en.wiktionary.org">English Wiktionary</a>
+        {t('footer.contributors')} (<a href="https://creativecommons.org/licenses/by-sa/4.0/">CC BY-SA 4.0</a>) · {t('footer.dataBy')}{' '}
         <a href="https://kaikki.org">kaikki.org</a> (Wiktextract)
       </footer>
     </>
   )
 }
 
-const EXAMPLES: { q: string; lang?: string }[] = [
-  { q: 'dictionary' },
-  { q: 'Straße', lang: 'de' },
-  { q: 'parler', lang: 'fr' },
-  { q: 'hablar', lang: 'es' },
-  { q: '사전', lang: 'ko' },
-  { q: '辞書', lang: 'ja' },
+/** 서버가 못 답할 때만 쓰는 예비 예시 */
+const FALLBACK_EXAMPLES: { word: string; lang_code: string; lang?: string }[] = [
+  { word: 'dictionary', lang_code: 'en' },
+  { word: 'Straße', lang_code: 'de' },
+  { word: 'parler', lang_code: 'fr' },
+  { word: 'hablar', lang_code: 'es' },
+  { word: '사전', lang_code: 'ko' },
+  { word: '辞書', lang_code: 'ja' },
 ]
+
+/** 사용자 로컬 날짜 YYYY-MM-DD */
+const localDate = () => {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+/** 오늘 날짜. 로컬 자정이 지나면 바뀐다(탭을 열어 둔 경우). */
+function useToday() {
+  const [today, setToday] = useState(localDate)
+  useEffect(() => {
+    const next = new Date()
+    next.setHours(24, 0, 1, 0)
+    const id = setTimeout(() => setToday(localDate()), next.getTime() - Date.now())
+    return () => clearTimeout(id)
+  }, [today])
+  return today
+}
 
 function Home({ route, langs }: { route: Route; langs: Lang[] }) {
   const settings = useSettings()
   const lib = useLibrary()
   const [busy, setBusy] = useState(false)
+  // 오늘의 단어: 자주 쓰는 언어마다 1개(없으면 전체에서 6개 언어), 매일 0시에 바뀐다
+  const today = useToday()
+  const prefer = settings.preferredLangs.join(',')
+  const daily = useAsync(() => api.daily(today, prefer || undefined), [today, prefer])
+  const examples = daily.data && daily.data.length ? daily.data : daily.error ? FALLBACK_EXAMPLES : []
 
-  // 랜덤 단어: 자주 쓰는 언어가 있으면 그 안에서, 없으면 전체에서
+  // 랜덤 단어: 자주 쓰는 언어가 있으면 그 안에서, 없으면 전체에서 (R 키와 같은 동작)
   const random = async () => {
     setBusy(true)
-    try {
-      const r = await api.random(settings.preferredLangs.join(',') || undefined)
-      location.hash = hrefEntry(r.lang_code, r.word)
-    } catch {
-      // 서버 오류면 그대로 둔다
-    } finally {
-      setBusy(false)
-    }
+    await goRandom()
+    setBusy(false)
   }
 
   const recent = lib.history.slice(0, 8)
@@ -214,32 +261,34 @@ function Home({ route, langs }: { route: Route; langs: Lang[] }) {
     <section className="hero">
       <h1>
         <span className="h1-line">
-          모든 언어의 <RotatingWord hrefEntry={hrefEntry} />
-          <span className="particle">를</span>
+          {t('hero.pre')}
+          <RotatingWord hrefEntry={hrefEntry} />
+          <span className="particle">{t('hero.post')}</span>
         </span>
         <br />
-        <span className="grad">한 곳에서</span> 찾아보세요
+        <span className="grad">{t('hero.grad')}</span>
+        {t('hero.rest')}
       </h1>
-      <p className="muted">정의 · 어원 · 발음 · 활용표를 영어 Wiktionary 기준으로 보여 드립니다.</p>
+      <p className="muted">{t('hero.sub')}</p>
       <SearchBar route={route} langs={langs} large />
       <div className="example-chips">
-        {EXAMPLES.map((e) => (
-          <a key={e.q} className="chip" href={hrefSearch(e.q, e.lang ?? '')}>
-            {e.q}
+        {examples.map((e) => (
+          <a key={`${e.lang_code}	${e.word}`} className="chip" href={hrefEntry(e.lang_code, e.word)} title={'lang' in e ? e.lang : undefined}>
+            {e.word}
           </a>
         ))}
         <button
           className="chip action"
           onClick={random}
           disabled={busy}
-          title={settings.preferredLangs.length ? '자주 쓰는 언어에서 무작위로' : '모든 언어에서 무작위로'}
+          title={settings.preferredLangs.length ? t('random.titlePref') : t('random.titleAll')}
         >
-          <Icon d={ICON.shuffle} /> 랜덤 단어
+          <Icon d={ICON.shuffle} /> {t('random.button')} <kbd className="kbd kbd-inline" aria-hidden="true">R</kbd>
         </button>
       </div>
       {recent.length > 0 && (
         <div className="recent">
-          <span className="muted">최근 본 단어</span>
+          <span className="muted">{t('recent.title')}</span>
           <div className="chips">
             {recent.map((h) => (
               <a key={`${h.lang_code}\t${h.word}`} className="chip" href={hrefEntry(h.lang_code, h.word)} title={h.lang}>
@@ -247,7 +296,7 @@ function Home({ route, langs }: { route: Route; langs: Lang[] }) {
               </a>
             ))}
             <a className="chip more" href={HREF_LIBRARY}>
-              전체 보기
+              {t('recent.all')}
             </a>
           </div>
         </div>
@@ -341,12 +390,12 @@ function SearchBar({ route, langs, large }: { route: Route; langs: Lang[]; large
 
   return (
     <form className={`searchbar${large ? ' large' : ''}`} onSubmit={submit} role="search">
-      <div className="seg-mini" role="radiogroup" aria-label="검색 방식">
+      <div className="seg-mini" role="radiogroup" aria-label={t('search.mode')}>
         <button type="button" role="radio" aria-checked={mode === 'word'} className={mode === 'word' ? 'on' : ''} onClick={() => setMode('word')}>
-          단어
+          {t('search.modeWord')}
         </button>
         <button type="button" role="radio" aria-checked={mode === 'def'} className={mode === 'def' ? 'on' : ''} onClick={() => setMode('def')}>
-          정의
+          {t('search.modeDef')}
         </button>
       </div>
       <input
@@ -362,8 +411,8 @@ function SearchBar({ route, langs, large }: { route: Route; langs: Lang[]; large
         }}
         onBlur={() => setFocused(false)}
         onKeyDown={onKeyDown}
-        placeholder={mode === 'word' ? '단어 검색 (모든 언어)' : '영어 정의로 검색 — 예: reference work listing words'}
-        aria-label="검색어"
+        placeholder={mode === 'word' ? t('search.placeholderWord') : t('search.placeholderDef')}
+        aria-label={t('search.input')}
         role="combobox"
         aria-expanded={open}
         aria-controls={listId}
@@ -372,26 +421,26 @@ function SearchBar({ route, langs, large }: { route: Route; langs: Lang[]; large
         autoComplete="off"
         spellCheck={false}
       />
-      {!focused && !q && <kbd className="kbd" aria-hidden="true" title="검색창으로 이동">/</kbd>}
+      {!focused && !q && <kbd className="kbd" aria-hidden="true" title={t('search.jump')}>/</kbd>}
       {mode === 'word' && (
-        <select value={lang} onChange={(e) => setLang(e.target.value)} aria-label="언어 필터">
-          <option value="">모든 언어</option>
+        <select value={lang} onChange={(e) => setLang(e.target.value)} aria-label={t('search.langFilter')}>
+          <option value="">{t('lang.all')}</option>
           {preferred.length > 0 ? (
             <>
-              <optgroup label="자주 쓰는 언어">{preferred.map(option)}</optgroup>
-              <optgroup label="모든 언어">{rest.map(option)}</optgroup>
+              <optgroup label={t('lang.preferred')}>{preferred.map(option)}</optgroup>
+              <optgroup label={t('lang.all')}>{rest.map(option)}</optgroup>
             </>
           ) : (
             langs.map(option)
           )}
         </select>
       )}
-      <button className="go" type="submit" aria-label="검색">
+      <button className="go" type="submit" aria-label={t('search.submit')}>
         <Icon d={ICON.search} />
       </button>
 
       {open && (
-        <ul className="suggest" id={listId} role="listbox" aria-label="자동완성">
+        <ul className="suggest" id={listId} role="listbox" aria-label={t('search.suggest')}>
           {sugs.map((sg, i) => (
             <li
               key={`${sg.word}\t${sg.lang_code}`}
@@ -409,7 +458,7 @@ function SearchBar({ route, langs, large }: { route: Route; langs: Lang[]; large
               <span className="s-word">{sg.word}</span>
               <span className="s-meta">
                 {sg.langs > 1 ? (
-                  <span className="pill">{sg.langs}개 언어</span>
+                  <span className="pill">{t('lang.count', { n: sg.langs })}</span>
                 ) : (
                   <>
                     <span className="pill">{sg.lang}</span>
@@ -420,7 +469,7 @@ function SearchBar({ route, langs, large }: { route: Route; langs: Lang[]; large
                     ))}
                   </>
                 )}
-                {MATCH_LABEL[sg.match] && <span className="badge">{MATCH_LABEL[sg.match]}</span>}
+                {matchLabel(sg.match) && <span className="badge">{matchLabel(sg.match)}</span>}
               </span>
             </li>
           ))}
@@ -430,12 +479,8 @@ function SearchBar({ route, langs, large }: { route: Route; langs: Lang[]; large
   )
 }
 
-const MATCH_LABEL: Record<Hit['match'], string> = {
-  exact: '',
-  normalized: '철자 근사',
-  form: '활용형 → 원형',
-  prefix: '접두사',
-}
+const MATCH_KEYS = { normalized: 'match.normalized', form: 'match.form', prefix: 'match.prefix' } as const
+const matchLabel = (m: Hit['match']) => (m === 'exact' ? '' : t(MATCH_KEYS[m]))
 
 function groupBy<T>(items: T[], key: (t: T) => string) {
   const m = new Map<string, T[]>()
@@ -449,7 +494,7 @@ function groupBy<T>(items: T[], key: (t: T) => string) {
 }
 
 function Status({ loading, error, empty }: { loading: boolean; error?: string; empty?: React.ReactNode }) {
-  if (loading) return <p className="muted status">불러오는 중…</p>
+  if (loading) return <p className="muted status">{t('status.loading')}</p>
   if (error) return <p className="error status">{error}</p>
   return <p className="muted status">{empty}</p>
 }
@@ -469,8 +514,8 @@ function SearchResults({ q, lang }: { q: string; lang: string }) {
         error={error}
         empty={
           <>
-            “{q}” 결과가 없습니다. <a href={hrefReverse(q)}>정의에서 찾아보기</a>
-            {shortHint && <> · 짧은 검색어는 언어를 고르면 더 찾아볼 수 있어요.</>}
+            {t('results.none', { q })} <a href={hrefReverse(q)}>{t('results.tryDef')}</a>
+            {shortHint && <> · {t('results.shortHint')}</>}
           </>
         }
       />
@@ -482,8 +527,8 @@ function SearchResults({ q, lang }: { q: string; lang: string }) {
   return (
     <div className="results">
       <p className="muted count">
-        “{q}” 결과 {data.length}개 · {groups.length}개 언어
-        {shortHint && ' · 짧은 검색어는 언어를 고르면 더 찾아볼 수 있어요.'}
+        {t('results.count', { q, n: data.length, g: groups.length })}
+        {shortHint && ` · ${t('results.shortHint')}`}
       </p>
       {groups.map(([k, hits]) => {
         const [code, name] = k.split('\t')
@@ -503,7 +548,7 @@ function SearchResults({ q, lang }: { q: string; lang: string }) {
                           {p}
                         </span>
                       ))}
-                      {MATCH_LABEL[h.match] && <span className="badge">{MATCH_LABEL[h.match]}</span>}
+                      {matchLabel(h.match) && <span className="badge">{matchLabel(h.match)}</span>}
                     </span>
                   </a>
                 </li>
@@ -518,10 +563,10 @@ function SearchResults({ q, lang }: { q: string; lang: string }) {
 
 function ReverseResults({ q }: { q: string }) {
   const { data, loading, error } = useAsync(() => api.reverse(q), [q])
-  if (loading || error || !data?.length) return <Status loading={loading} error={error} empty={<>“{q}”에 해당하는 정의가 없습니다.</>} />
+  if (loading || error || !data?.length) return <Status loading={loading} error={error} empty={t('reverse.none', { q })} />
   return (
     <div className="results">
-      <p className="muted count">정의 검색 “{q}” · {data.length}개</p>
+      <p className="muted count">{t('reverse.count', { q, n: data.length })}</p>
       <section className="card">
         <ul className="reverse">
           {data.map((r: ReverseHit, i) => (
@@ -578,7 +623,7 @@ function EntryPage({ lang, word }: { lang: string; word: string }) {
   }, [lang, canonical])
 
   if (target || canonical) return <Status loading error={undefined} empty={null} />
-  if (loading || error || !data?.length) return <Status loading={loading} error={error} empty="항목이 없습니다." />
+  if (loading || error || !data?.length) return <Status loading={loading} error={error} empty={t('entry.none')} />
 
   return (
     <article>
@@ -589,8 +634,8 @@ function EntryPage({ lang, word }: { lang: string; word: string }) {
           className={`star${fav ? ' on' : ''}`}
           onClick={() => toggleFavorite(lang, word, data[0].lang)}
           aria-pressed={fav}
-          title={fav ? '즐겨찾기에서 빼기' : '즐겨찾기에 담기'}
-          aria-label={fav ? '즐겨찾기에서 빼기' : '즐겨찾기에 담기'}
+          title={fav ? t('fav.remove') : t('fav.add')}
+          aria-label={fav ? t('fav.remove') : t('fav.add')}
         >
           <Icon d={ICON.star} filled={fav} />
         </button>
@@ -660,15 +705,8 @@ function InflectionTables({ tables }: { tables: InflTable[] }) {
     else blocks.push({ group: t.group, items: [t] })
   }
   const firstGrouped = blocks.findIndex((x) => x.group)
-  const hasMarks = tables.some((t) => t.rows.some((r) => r.cells.some((c) => c.some((x) => x.parts))))
   return (
     <>
-      {hasMarks && (
-        <p className="legend">
-          <span><b className="m-end">어미</b> 굴절하는 부분</span>
-          <span><b className="m-irr">불규칙</b> 어간까지 달라진 형태</span>
-        </p>
-      )}
       {blocks.map((b, i) =>
         b.group ? (
           <details key={i} open={i === firstGrouped} className="infl-group">
@@ -710,7 +748,7 @@ function FormList({ forms, lang, hasTables }: { forms: Entry['forms']; lang: str
       {rest.length > 0 && (
         <details className="fold">
           <summary>
-            {hasTables ? '그 밖의 형태' : '활용형'} <span className="count-pill">{rest.length}</span>
+            {hasTables ? t('forms.other') : t('forms.all')} <span className="count-pill">{rest.length}</span>
           </summary>
           {list(rest)}
         </details>
@@ -718,7 +756,7 @@ function FormList({ forms, lang, hasTables }: { forms: Entry['forms']; lang: str
       {combined.length > 0 && (
         <details className="fold">
           <summary>
-            대명사 결합형 <span className="count-pill">{combined.length}</span>
+            {t('forms.combined')} <span className="count-pill">{combined.length}</span>
           </summary>
           {list(combined)}
         </details>
@@ -727,11 +765,11 @@ function FormList({ forms, lang, hasTables }: { forms: Entry['forms']; lang: str
   )
 }
 
-const REL_ORDER = ['form_of', 'alt_of', 'synonyms', 'antonyms', 'hypernyms', 'hyponyms', 'coordinate_terms', 'derived', 'related']
-const REL_LABEL: Record<string, string> = {
-  form_of: '원형', alt_of: '대체 표기 대상', synonyms: '동의어', antonyms: '반의어', hypernyms: '상위어',
-  hyponyms: '하위어', coordinate_terms: '동위어', derived: '파생어', related: '관련어',
-}
+const REL_ORDER = ['form_of', 'alt_of', 'synonyms', 'antonyms', 'hypernyms', 'hyponyms', 'coordinate_terms', 'derived', 'related'] as const
+const REL_KEYS = {
+  form_of: 'rel.form_of', alt_of: 'rel.alt_of', synonyms: 'rel.synonyms', antonyms: 'rel.antonyms', hypernyms: 'rel.hypernyms',
+  hyponyms: 'rel.hyponyms', coordinate_terms: 'rel.coordinate_terms', derived: 'rel.derived', related: 'rel.related',
+} as const
 
 function EntryBlock({ e }: { e: Entry }) {
   if (e.pos === 'soft-redirect') {
@@ -739,9 +777,9 @@ function EntryBlock({ e }: { e: Entry }) {
     return (
       <section className="card entry">
         <h2 className="entry-pos">
-          <span className="posname">연결 항목</span>
+          <span className="posname">{t('redirect.title')}</span>
         </h2>
-        <p className="muted">{to.length ? '이 표기는 다른 항목으로 연결됩니다.' : '이 표기는 다른 항목으로 연결되지만 목적지 정보가 없습니다.'}</p>
+        <p className="muted">{to.length ? t('redirect.has') : t('redirect.none')}</p>
         <div className="chips">
           {to.map((w) => (
             <a key={w} className="chip" href={hrefEntry(e.lang_code, w)}>
@@ -759,7 +797,7 @@ function EntryBlock({ e }: { e: Entry }) {
     <section className="card entry">
       <h2 className="entry-pos">
         <span className="posname">{e.pos}</span>
-        {e.etymology_number ? <span className="code">어원 {e.etymology_number}</span> : null}
+        {e.etymology_number ? <span className="code">{t('ety.number', { n: e.etymology_number })}</span> : null}
       </h2>
       {e.head && <p className="head">{e.head}</p>}
 
@@ -797,7 +835,7 @@ function EntryBlock({ e }: { e: Entry }) {
               )}
               {s.examples.length > 0 && (
                 <details className="examples">
-                  <summary>예문 {s.examples.length}</summary>
+                  <summary>{t('ex.summary', { n: s.examples.length })}</summary>
                   {s.examples.map((x, j) => (
                     <blockquote key={j}>
                       {x.text}
@@ -812,15 +850,15 @@ function EntryBlock({ e }: { e: Entry }) {
       </ol>
 
       {e.etymology && (
-        <details open className="fold">
-          <summary>어원</summary>
+        <details className="fold">
+          <summary>{t('ety.title')}</summary>
           <p className="ety">{e.etymology}</p>
         </details>
       )}
 
       {e.tables.length > 0 && (
         <details open className="fold infl-wrap">
-          <summary>굴절표</summary>
+          <summary>{t('infl.title')}</summary>
           <InflectionTables tables={e.tables} />
         </details>
       )}
@@ -829,7 +867,7 @@ function EntryBlock({ e }: { e: Entry }) {
 
       {REL_ORDER.filter((k) => e.relations[k]?.length).map((k) => (
         <div key={k} className="rel">
-          <strong>{REL_LABEL[k]}</strong>
+          <strong>{t(REL_KEYS[k])}</strong>
           <div className="chips">
             {e.relations[k].map((w) => (
               <a key={w} className="chip" href={hrefEntry(e.lang_code, w)}>

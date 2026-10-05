@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react'
+import { DEFAULT_LOCALE, isLocale, type Locale } from './locales'
 
 export type Mode = 'system' | 'light' | 'dark'
 
@@ -11,9 +12,11 @@ export type Settings = {
   highlight: boolean
   /** 자주 쓰는 언어(코드). 검색 결과·자동완성에서 먼저 보이고, 랜덤 단어도 이 언어들에서 뽑는다. */
   preferredLangs: string[]
+  /** 화면(UI) 문구의 언어. 사전 내용은 영향받지 않는다. */
+  locale: Locale
 }
 
-export const DEFAULTS: Settings = { mode: 'system', accentLight: '#4f46e5', accentDark: '#8f95ff', highlight: true, preferredLangs: [] }
+export const DEFAULTS: Settings = { mode: 'system', accentLight: '#4f46e5', accentDark: '#8f95ff', highlight: true, preferredLangs: [], locale: DEFAULT_LOCALE }
 
 /** 라이트/다크에서 각각 읽기 좋게 맞춘 프리셋. 라이트 쪽은 흰 카드/회색 배경 위 글자 대비 4.5:1 이상(WCAG AA)으로 골랐다. */
 export const PRESETS: { name: string; light: string; dark: string }[] = [
@@ -45,6 +48,7 @@ function load(): Settings {
         preferredLangs: Array.isArray(raw.preferredLangs)
           ? raw.preferredLangs.filter((c: unknown): c is string => typeof c === 'string' && c.length > 0 && c.length <= 20).slice(0, MAX_PREFERRED)
           : [],
+        locale: isLocale(raw.locale) ? raw.locale : DEFAULTS.locale,
       }
     }
   } catch {
@@ -145,6 +149,7 @@ export function applySettings(s: Settings) {
   if (s.mode === 'system') delete root.dataset.theme
   else root.dataset.theme = s.mode
   root.dataset.hl = s.highlight ? 'on' : 'off'
+  root.lang = s.locale // 화면 읽기/번역 도구/글꼴 선택(한·중·일 글리프)이 이 값을 본다
   root.style.setProperty('--accent-l', s.accentLight)
   root.style.setProperty('--on-accent-l', onAccent(s.accentLight))
   root.style.setProperty('--accent-2-l', partnerColor(s.accentLight))

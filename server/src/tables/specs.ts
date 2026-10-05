@@ -30,7 +30,7 @@ const deVerb: TableSpec[] = [
   {
     title: "Indicative",
     morph: deMorph,
-    cols: dePersons,
+    cols: dePersons, transpose: true,
     base: ["indicative"],
     ignore: ["multiword-construction"],
     rows: [
@@ -41,7 +41,7 @@ const deVerb: TableSpec[] = [
   {
     title: "Subjunctive I",
     morph: deMorph,
-    cols: dePersons,
+    cols: dePersons, transpose: true,
     base: ["subjunctive"],
     ignore: ["multiword-construction"],
     rows: [
@@ -52,7 +52,7 @@ const deVerb: TableSpec[] = [
   {
     title: "Subjunctive II",
     morph: deMorph,
-    cols: dePersons,
+    cols: dePersons, transpose: true,
     base: ["subjunctive"],
     ignore: ["multiword-construction"],
     rows: [
@@ -62,7 +62,7 @@ const deVerb: TableSpec[] = [
     ],
   },
   {
-    title: "Imperative",
+    title: "Imperative", transpose: true,
     morph: deMorph,
     cols: [ax("du", ...SG), ax("ihr", ...PL)],
     base: ["imperative", "second-person"],
@@ -128,7 +128,7 @@ const esVerb: TableSpec[] = [
     title: "Indicative",
     morph: esMorph,
     preferSingle: true,
-    cols: esPersons,
+    cols: esPersons, transpose: true,
     base: ["indicative"],
     ignore: ["informal"],
     rows: [
@@ -140,7 +140,7 @@ const esVerb: TableSpec[] = [
     title: "Subjunctive",
     morph: esMorph,
     preferSingle: true,
-    cols: esPersons,
+    cols: esPersons, transpose: true,
     base: ["subjunctive"],
     ignore: ["informal"],
     rows: [
@@ -149,7 +149,7 @@ const esVerb: TableSpec[] = [
     ],
   },
   {
-    title: "Imperative",
+    title: "Imperative", transpose: true,
     morph: esMorph,
     preferSingle: true,
     cols: [
@@ -195,22 +195,22 @@ const frVerb: TableSpec[] = [
   {
     title: "Indicative",
     morph: frMorph,
-    cols: frPersons,
+    cols: frPersons, transpose: true,
     base: ["indicative"],
     rows: [
       ax("Present", "present"), ax("Imperfect", "imperfect"), ax("Past historic", "historic", "past"), axInf("Future", "future"),
     ],
   },
-  { title: "Conditional", morph: frMorph, cols: frPersons, base: ["conditional"], rows: [axInf("Present")] },
+  { title: "Conditional", morph: frMorph, cols: frPersons, transpose: true, base: ["conditional"], rows: [axInf("Present")] },
   {
     title: "Subjunctive",
     morph: frMorph,
-    cols: frPersons,
+    cols: frPersons, transpose: true,
     base: ["subjunctive"],
     rows: [ax("Present", "present"), ax("Imperfect", "imperfect")],
   },
   {
-    title: "Imperative",
+    title: "Imperative", transpose: true,
     morph: frMorph,
     cols: [ax("tu", ...P2, ...SG), ax("nous", ...P1, ...PL), ax("vous", ...P2, ...PL)],
     base: ["imperative"],

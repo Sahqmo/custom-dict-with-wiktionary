@@ -1,10 +1,16 @@
 import { ax } from "../common.js";
+import { stemMorph } from "../morph.js";
 import type { SpecSet, TableSpec } from "../engine.js";
+
+// 명사·동사는 표 전체에서, 형용사는 비교급·최상급마다 행에서 어간을 구한다(stor → större → störst 처럼 어간이 달라지므로).
+const byTable = stemMorph("table");
+const byRow = stemMorph("row");
 
 // 스웨덴어 명사: 정관사가 어미로 붙는다 (hus / huset / hus / husen) — 별도 관사 없이 형태 자체가 표의 내용이다.
 const noun: TableSpec[] = [
   {
     title: "Declension",
+    morph: byTable,
     cols: [
       ax("Singular", "nominative", "singular"), ax("Singular genitive", "genitive", "singular"),
       ax("Plural", "nominative", "plural"), ax("Plural genitive", "genitive", "plural"),
@@ -16,6 +22,7 @@ const noun: TableSpec[] = [
 const verb: TableSpec[] = [
   {
     title: "Finite and non-finite forms",
+    morph: stemMorph("table", { skipRows: ["Infinitive"] }),
     cols: [ax("Active", "active"), ax("Passive", "passive")],
     rows: [
       ax("Infinitive", "infinitive"),
@@ -34,6 +41,7 @@ const verb: TableSpec[] = [
 const adj: TableSpec[] = [
   {
     title: "Inflection",
+    morph: byRow,
     cols: [
       ax("Indefinite", "indefinite"), ax("Neuter", "indefinite", "neuter", "singular"), ax("Plural", "indefinite", "plural"),
       ax("Definite", "definite"), ax("Definite masc.", "definite", "masculine", "singular"),

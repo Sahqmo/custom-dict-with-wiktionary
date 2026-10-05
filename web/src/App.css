@@ -849,17 +849,12 @@ details > summary:hover {
   font-size: 0.93em;
 }
 
+/* 굴절하는 부분: 어미(m-end)와 불규칙 형태의 단어 전체(m-irr)를 같은 방식으로 강조한다.
+   (데이터는 둘을 구분해 두지만 보여 주는 방식은 하나다 — 불규칙은 "단어 전체가 굴절 부분"이라는 뜻이므로.) */
 .m-end,
 .m-irr {
   color: var(--accent);
   font-weight: 700;
-}
-
-.m-irr {
-  background: var(--accent-soft);
-  border-radius: 4px;
-  padding: 0 3px;
-  margin: 0 -3px;
 }
 
 /* 설정에서 강조를 끈 경우 */
@@ -870,19 +865,6 @@ details > summary:hover {
   background: none;
   padding: 0;
   margin: 0;
-}
-
-.legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 18px;
-  margin: 6px 0 0;
-  font-size: 13px;
-  color: var(--muted);
-}
-
-.legend b {
-  margin-right: 4px;
 }
 
 /* ───────── 관련어 ───────── */
@@ -1232,6 +1214,18 @@ details > summary:hover {
   cursor: default;
 }
 
+.kbd.kbd-inline {
+  margin-left: 2px;
+  min-width: 18px;
+  padding: 0 5px;
+  border-bottom-width: 1px;
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--accent-ink);
+  background: color-mix(in oklab, var(--accent) 10%, var(--surface));
+  border-color: var(--accent-line);
+}
+
 /* ───────── 즐겨찾기 별 / 홈 확장 ───────── */
 .star {
   display: grid;
@@ -1450,6 +1444,26 @@ details > summary:hover {
   .star {
     transition: none;
   }
+}
+
+/* 설정: UI 언어 선택 칩 */
+.chip.pick {
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  padding: 5px 14px;
+}
+
+.chip.pick:hover {
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.chip.pick.on {
+  color: var(--accent-ink);
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  font-weight: 700;
 }
 
 /* ───────── 푸터 ───────── */

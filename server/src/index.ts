@@ -4,7 +4,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalize } from "./normalize.js";
-import { getEntry, getLangs, randomEntry, reverseSearch, search } from "./queries.js";
+import { dailyEntries, getEntry, getLangs, randomEntry, reverseSearch, search } from "./queries.js";
 import { favorites, history, type Saved } from "./userdb.js";
 
 const app = Fastify({ logger: { level: "warn" } });
@@ -46,6 +46,12 @@ app.get<{ Querystring: { q?: string; lang?: string; prefer?: string } }>("/api/s
 app.get<{ Querystring: { langs?: string } }>("/api/random", async (req, reply) => {
   const r = randomEntry(codes(req.query.langs));
   return r ?? reply.code(404).send({ error: "조건에 맞는 단어가 없습니다" });
+});
+
+app.get<{ Querystring: { date?: string; langs?: string } }>("/api/daily", async (req, reply) => {
+  const date = req.query.date ?? "";
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return reply.code(400).send({ error: "date(YYYY-MM-DD) 필요" });
+  return dailyEntries(date, codes(req.query.langs));
 });
 
 app.get<{ Querystring: { word?: string; lang?: string } }>("/api/entry", async (req, reply) => {

@@ -79,9 +79,19 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--fg);
-  font: 16px/1.6 Inter, Pretendard, system-ui, 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', sans-serif;
+  font: 16px/1.6 Inter, Pretendard, system-ui, 'Segoe UI', 'Malgun Gothic', 'Apple SD Gothic Neo', 'Microsoft YaHei UI', 'PingFang SC', 'Noto Sans SC', sans-serif;
   font-feature-settings: 'cv11', 'ss01';
   -webkit-font-smoothing: antialiased;
+}
+
+/* UI 언어(html[lang])에 맞는 글꼴. 같은 한자도 일본어/중국어/한국어에서 글리프가 달라서, 한국어 글꼴이 먼저 오는 기본 스택을
+   그대로 쓰면 일본어·중국어 화면에서 한자가 어색한 모양으로 그려진다. */
+html[lang='ja'] body {
+  font-family: Inter, 'Yu Gothic UI', 'Hiragino Sans', 'Hiragino Kaku Gothic ProN', Meiryo, 'Noto Sans JP', system-ui, sans-serif;
+}
+
+html[lang='zh'] body {
+  font-family: Inter, 'Microsoft YaHei UI', 'PingFang SC', 'Hiragino Sans GB', 'Noto Sans SC', system-ui, sans-serif;
 }
 
 h1,

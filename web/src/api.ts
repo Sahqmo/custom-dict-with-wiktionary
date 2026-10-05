@@ -82,6 +82,7 @@ export const api = {
   search: (q: string, lang?: string, prefer?: string) => get<Hit[]>('search', { q, lang, prefer }),
   suggest: (q: string, lang?: string, prefer?: string) => get<Suggestion[]>('suggest', { q, lang, prefer }),
   random: (langs?: string) => get<RandomPick>('random', { langs }),
+  daily: (date: string, langs?: string) => get<RandomPick[]>('daily', { date, langs }),
   reverse: (q: string) => get<ReverseHit[]>('reverse', { q }),
   entry: (word: string, lang: string) => get<Entry[]>('entry', { word, lang }),
   langs: () => get<Lang[]>('langs'),

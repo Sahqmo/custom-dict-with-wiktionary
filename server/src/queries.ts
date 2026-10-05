@@ -142,6 +142,9 @@ const FORMS_CAP = 400;
 const qRels = db.prepare("SELECT type, target FROM relations WHERE entry_id = ?");
 
 const REL_CAP = 100;
+// 위키낱말사전의 안내 문구가 연관어 칸에 단어처럼 섞여 있다 ("see Thesaurus:betrinken", ":Category:…", "See Wikipedia at …").
+// 단어가 아니라 링크도 걸 수 없으므로 거른다. ("see to", "see you later" 같은 진짜 단어는 남긴다.)
+const REL_POINTER = /thesaurus:|category:|^see\s.*\b(wikipedia|terms)\b/i;
 const split = (s: string | null) => (s ? s.split(",") : []);
 
 // kaikki의 etymology_text는 "Etymology tree" 계통도 줄들이 앞에 붙는 경우가 있다.
@@ -172,6 +175,7 @@ export function getEntry(word: string, langCode: string) {
     const relations: Record<string, string[]> = {};
     for (const r of qRels.all(id) as Array<{ type: string; target: string }>) {
       const list = (relations[r.type] ??= []);
+      if (REL_POINTER.test(r.target)) continue;
       if (list.length < REL_CAP && !list.includes(r.target)) list.push(r.target);
     }
     return {
@@ -257,11 +261,11 @@ const langCounts = () => (langCountMap ??= new Map(getLangs().map((l) => [l.lang
  * 무작위 단어 하나. langs를 주면 그 언어들 중에서 고른다.
  * 항목 id는 연속이라 임의의 id에서 시작해 조건에 맞는 첫 항목을 집으면 균등에 가깝게 뽑힌다 (전체 정렬/집계가 필요 없다).
  */
-export function randomEntry(langs: string[] = []): RandomRow | null {
+export function randomEntry(langs: string[] = [], rnd: () => number = Math.random): RandomRow | null {
   const maxId = (prep("SELECT MAX(id) AS m FROM entries").all()[0] as { m: number }).m;
   for (let attempt = 0; attempt < 5; attempt++) {
-    const start = 1 + Math.floor(Math.random() * maxId);
-    const lang = langs.length ? langs[Math.floor(Math.random() * langs.length)] : null;
+    const start = 1 + Math.floor(rnd() * maxId);
+    const lang = langs.length ? langs[Math.floor(rnd() * langs.length)] : null;
     // 큰 언어(영어 150만 건 등)는 언어 인덱스를 타면 전부 id로 정렬해야 해서 느리다(1초+).
     // `+lang_code`로 인덱스 사용을 막아 id 순서로 훑으며 거르게 한다. 작은 언어는 인덱스가 훨씬 빠르다.
     const big = lang !== null && (langCounts().get(lang) ?? 0) > BIG_LANG;
@@ -275,4 +279,45 @@ export function randomEntry(langs: string[] = []): RandomRow | null {
     if (row) return row;
   }
   return null;
+}
+
+/* ---------- 오늘의 단어 (홈 예시 칩) ---------- */
+
+/** 문자열 → 32비트 시드 (FNV-1a) */
+function hashSeed(str: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < str.length; i++) h = Math.imul(h ^ str.charCodeAt(i), 16777619);
+  return h >>> 0;
+}
+/** 시드 고정 난수 (mulberry32): 같은 날짜면 누구에게나 같은 단어가 나오게 한다 */
+function seededRng(seed: number): () => number {
+  let a = seed;
+  return () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+/**
+ * 날짜(YYYY-MM-DD, 사용자 로컬 날짜)마다 바뀌는 단어 목록. 언어당 1개, 언어 중복 없음.
+ * - langs가 있으면 그 언어들에서 하나씩 (순서 유지)
+ * - 없으면 전체 언어 중 무작위로 count개 언어를 골라 하나씩
+ * 같은 (date, langs)면 항상 같은 결과다.
+ */
+export function dailyEntries(date: string, langs: string[], count = 6): RandomRow[] {
+  const rnd = seededRng(hashSeed(`${date}|${langs.join(",")}`));
+  const known = getLangs().map((l) => l.lang_code);
+  const pool = langs.length ? langs.filter((c) => langCounts().has(c)) : known;
+  // 전체에서 고를 때는 시드 셔플한 순서로 훑으며 단어를 못 찾는 언어는 건너뛴다
+  const order = [...pool];
+  if (!langs.length) for (let i = order.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [order[i], order[j]] = [order[j], order[i]]; }
+  const out: RandomRow[] = [];
+  for (const code of order) {
+    const r = randomEntry([code], rnd);
+    if (r) out.push(r);
+    if (!langs.length && out.length >= count) break;
+  }
+  return out;
 }
