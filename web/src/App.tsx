@@ -1,6 +1,7 @@
 import { useEffect, useId, useMemo, useState } from 'react'
 import { api, type Entry, type Hit, type InflTable, type Lang, type ReverseHit, type Suggestion } from './api'
 import { t } from './i18n'
+import LangPicker from './LangPicker'
 import LibraryPage from './LibraryPage'
 import { loadLibrary, recordVisit, toggleFavorite, useLibrary } from './library'
 import RotatingWord from './RotatingWord'
@@ -193,7 +194,7 @@ export default function App() {
         </div>
       </header>
 
-      <main>
+      <main className={route.page === 'home' ? 'home' : undefined}>
         {route.page === 'home' && <Home route={route} langs={langs.data ?? []} />}
         {route.page === 'settings' && <SettingsPage />}
         {route.page === 'library' && <LibraryPage />}
@@ -380,14 +381,6 @@ function SearchBar({ route, langs, large }: { route: Route; langs: Lang[]; large
     }
   }
 
-  const preferred = settings.preferredLangs.map((c) => langs.find((l) => l.lang_code === c)).filter((l): l is Lang => !!l)
-  const rest = preferred.length ? langs.filter((l) => !settings.preferredLangs.includes(l.lang_code)) : langs
-  const option = (l: Lang) => (
-    <option key={l.lang_code} value={l.lang_code}>
-      {l.lang} ({l.count.toLocaleString()})
-    </option>
-  )
-
   return (
     <form className={`searchbar${large ? ' large' : ''}`} onSubmit={submit} role="search">
       <div className="seg-mini" role="radiogroup" aria-label={t('search.mode')}>
@@ -423,17 +416,7 @@ function SearchBar({ route, langs, large }: { route: Route; langs: Lang[]; large
       />
       {!focused && !q && <kbd className="kbd" aria-hidden="true" title={t('search.jump')}>/</kbd>}
       {mode === 'word' && (
-        <select value={lang} onChange={(e) => setLang(e.target.value)} aria-label={t('search.langFilter')}>
-          <option value="">{t('lang.all')}</option>
-          {preferred.length > 0 ? (
-            <>
-              <optgroup label={t('lang.preferred')}>{preferred.map(option)}</optgroup>
-              <optgroup label={t('lang.all')}>{rest.map(option)}</optgroup>
-            </>
-          ) : (
-            langs.map(option)
-          )}
-        </select>
+        <LangPicker langs={langs} value={lang} onChange={setLang} preferred={settings.preferredLangs} />
       )}
       <button className="go" type="submit" aria-label={t('search.submit')}>
         <Icon d={ICON.search} />

@@ -115,8 +115,7 @@
   box-shadow: 0 0 0 3px var(--ring);
 }
 
-.searchbar input,
-.searchbar select {
+.searchbar input {
   border: 0;
   background: transparent;
   box-shadow: none;
@@ -128,18 +127,176 @@
   padding: 7px 8px;
 }
 
-.searchbar select {
-  max-width: 170px;
-  padding: 7px 4px;
-  color: var(--muted);
+/* ───────── 언어 선택 (LangPicker) ───────── */
+.lang-picker {
+  flex: none;
+  min-width: 0;
+  padding-left: 4px;
   border-left: 1px solid var(--line);
-  border-radius: 0;
+}
+
+.lp-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  max-width: 190px;
+  height: 34px;
+  padding: 0 10px 0 11px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.lp-trigger:hover,
+.lp-trigger[aria-expanded='true'] {
+  background: var(--surface-2);
+  color: var(--fg);
+}
+
+.lp-trigger.set {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+
+.lp-trigger:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+.lp-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-trigger svg {
+  flex: none;
+}
+
+.lp-chev {
+  display: inline-flex;
+  opacity: 0.7;
+  transition: transform 0.18s;
+}
+
+.lp-chev.up {
+  transform: rotate(180deg);
+}
+
+.lp-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  z-index: 30;
+  width: min(340px, 100%);
+  padding: 8px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.14);
+  text-align: left;
+  animation: lp-in 0.14s ease-out;
+}
+
+@keyframes lp-in {
+  from {
+    opacity: 0;
+    transform: translateY(-4px) scale(0.98);
+  }
+}
+
+.searchbar .lp-filter {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 14px;
+  box-shadow: none;
+}
+
+.searchbar .lp-filter:focus {
+  border-color: var(--accent);
+  background: var(--surface);
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.lp-list {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  max-height: min(48vh, 360px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+.lp-head {
+  position: sticky;
+  top: 0;
+  padding: 8px 10px 4px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.lp-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+  border-radius: 9px;
+  font-size: 14.5px;
   cursor: pointer;
 }
 
-.searchbar select option {
-  background: var(--surface);
-  color: var(--fg);
+.lp-item.on {
+  background: var(--surface-2);
+}
+
+.lp-item.sel {
+  color: var(--accent-ink);
+  font-weight: 600;
+}
+
+.lp-item.sel.on {
+  background: var(--accent-soft);
+}
+
+.lp-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lp-count {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+
+.lp-check {
+  display: inline-flex;
+  color: var(--accent);
+}
+
+.lp-empty {
+  padding: 14px 10px;
+  color: var(--muted);
+  font-size: 14px;
+  text-align: center;
 }
 
 .seg-mini {
@@ -209,9 +366,19 @@ main {
   padding: 28px 20px 40px;
 }
 
+/* 홈: 머리글과 바닥글 사이의 남는 공간 한가운데에 둔다 */
+main.home {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  /* 정중앙(머리글/바닥글 보정 56px)과 예전 위치의 딱 중간. 화면이 클수록 위로 더 올린다 */
+  padding-top: 56px;
+  padding-bottom: calc(40px + max(0px, 43vh - 277px));
+}
+
 .hero {
   text-align: center;
-  padding: 7vh 0 4vh;
+  padding: 0;
 }
 
 .hero h1 {
@@ -1522,12 +1689,15 @@ footer a:hover {
     order: 2;
   }
 
-  .searchbar select {
+  .lang-picker {
     order: 3;
     flex: 1;
-    max-width: none;
-    min-width: 0;
     border-left: 0;
+    padding-left: 0;
+  }
+
+  .lp-trigger {
+    max-width: 100%;
   }
 
   .searchbar .go {
