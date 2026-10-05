@@ -1044,6 +1044,15 @@ details > summary:hover {
   margin-top: 4px;
 }
 
+.chip.dead {
+  color: var(--muted);
+  opacity: 0.55;
+  background: transparent;
+  border-style: dashed;
+  cursor: default;
+  pointer-events: auto;
+}
+
 .rel strong {
   color: var(--muted);
   font-size: 13px;

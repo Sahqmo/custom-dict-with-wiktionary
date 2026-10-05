@@ -145,6 +145,25 @@ const REL_CAP = 100;
 // 위키낱말사전의 안내 문구가 연관어 칸에 단어처럼 섞여 있다 ("see Thesaurus:betrinken", ":Category:…", "See Wikipedia at …").
 // 단어가 아니라 링크도 걸 수 없으므로 거른다. ("see to", "see you later" 같은 진짜 단어는 남긴다.)
 const REL_POINTER = /thesaurus:|category:|^see\s.*\b(wikipedia|terms)\b/i;
+
+// 연관어 링크가 열리는지 미리 확인한다: 같은 언어에 그 철자(정규화)의 항목이 있어야 항목 페이지가 열린다.
+// 위키낱말사전에는 아직 문서가 없는 단어(빨간 링크)가 연관어로 적힌 경우가 많다 (에스페란토 동의어의 약 17%).
+const qExists = db.prepare("SELECT 1 FROM entries WHERE lang_code = ? AND norm_word = ? LIMIT 1");
+const existsCache = new Map<string, boolean>();
+const EXISTS_CACHE_MAX = 50_000;
+function entryExists(lang: string, word: string): boolean {
+  const key = `${lang}	${word}`;
+  let hit = existsCache.get(key);
+  if (hit === undefined) {
+    hit = qExists.get(lang, normalize(word)) !== undefined;
+    if (existsCache.size >= EXISTS_CACHE_MAX) existsCache.clear();
+    existsCache.set(key, hit);
+  }
+  return hit;
+}
+// 다른 곳(리다이렉트 처리, 활용형 안내)에서 따로 쓰는 관계는 검사하지 않는다.
+const REL_NO_CHECK = new Set(["redirect", "form_of", "alt_of"]);
+
 const split = (s: string | null) => (s ? s.split(",") : []);
 
 // kaikki의 etymology_text는 "Etymology tree" 계통도 줄들이 앞에 붙는 경우가 있다.
@@ -178,6 +197,14 @@ export function getEntry(word: string, langCode: string) {
       if (REL_POINTER.test(r.target)) continue;
       if (list.length < REL_CAP && !list.includes(r.target)) list.push(r.target);
     }
+    const relMissing = [
+      ...new Set(
+        Object.entries(relations)
+          .filter(([type]) => !REL_NO_CHECK.has(type))
+          .flatMap(([, list]) => list)
+          .filter((w) => !entryExists(e.lang_code as string, w)),
+      ),
+    ];
     return {
       ...e,
       senses: (qSenses.all(id) as Array<{ gloss: string; tags: string | null; examples: string | null }>).map((s) => ({
@@ -202,6 +229,8 @@ export function getEntry(word: string, langCode: string) {
         return { tables, forms: leftover.slice(0, FORMS_CAP) };
       })(),
       relations,
+      /** 연관어 중 이 언어에 항목이 없는 것 (화면에서 링크 없이 흐리게 보여 준다) */
+      relMissing,
     };
   });
 }

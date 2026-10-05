@@ -49,6 +49,8 @@ export type Entry = {
   /** 표에 들어가지 않은 나머지 활용형 */
   forms: { form: string; tags: string[] }[]
   relations: Record<string, string[]>
+  /** relations 중 항목이 없는 단어 */
+  relMissing: string[]
 }
 
 /** 자동완성 항목. 같은 철자(대소문자·악센트 변형 포함)는 하나로 묶이고, langs = 그 철자가 있는 언어 수. */

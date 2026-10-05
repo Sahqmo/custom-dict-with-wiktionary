@@ -852,11 +852,17 @@ function EntryBlock({ e }: { e: Entry }) {
         <div key={k} className="rel">
           <strong>{t(REL_KEYS[k])}</strong>
           <div className="chips">
-            {e.relations[k].map((w) => (
-              <a key={w} className="chip" href={hrefEntry(e.lang_code, w)}>
-                {w}
-              </a>
-            ))}
+            {e.relations[k].map((w) =>
+              e.relMissing.includes(w) ? (
+                <span key={w} className="chip dead" title={t('rel.missing')}>
+                  {w}
+                </span>
+              ) : (
+                <a key={w} className="chip" href={hrefEntry(e.lang_code, w)}>
+                  {w}
+                </a>
+              ),
+            )}
           </div>
         </div>
       ))}
