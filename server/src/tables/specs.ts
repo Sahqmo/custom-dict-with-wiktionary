@@ -1,12 +1,13 @@
 import { deArticle, esArticle, frArticle } from "./articles.js";
-import type { Axis, SpecSet, TableSpec } from "./engine.js";
+import { ax, axInf, P1, P2, P3, PL, SG } from "./common.js";
+import type { SpecSet, TableSpec } from "./engine.js";
+import { en } from "./langs/en.js";
+import { it } from "./langs/it.js";
+import { la } from "./langs/la.js";
+import { pt } from "./langs/pt.js";
+import { ru } from "./langs/ru.js";
+import { sv } from "./langs/sv.js";
 import { deMorph, esMorph, frMorph } from "./morph.js";
-
-const ax = (label: string, ...tags: string[]): Axis => ({ label, tags });
-// 어미 강조에서 어간 대신 부정사를 기준으로 삼는 행 (스페인어/프랑스어 미래·조건법)
-const axInf = (label: string, ...tags: string[]): Axis => ({ label, tags, base: "inf" });
-
-const P1 = ["first-person"], P2 = ["second-person"], P3 = ["third-person"], SG = ["singular"], PL = ["plural"];
 
 /* ============================== 독일어 ============================== */
 
@@ -221,8 +222,16 @@ const frNoun: TableSpec[] = esNoun.map((t) => ({ ...t, article: frArticle }));
 
 const frAdj: TableSpec[] = [nounAdjAgreement];
 
+// 단어 수 상위 10개 언어 중 굴절이 있는 언어: 영어 · 라틴어 · 스페인어 · 이탈리아어 · 포르투갈어 · 러시아어 · 프랑스어 · 독일어 · 스웨덴어
+// (중국어는 굴절이 없어 대상이 아니다.) 새 언어는 langs/ 아래에 같은 형태의 파일을 만들고 여기에 등록한다.
 export const SPECS: Record<string, SpecSet> = {
   de: { verb: deVerb, noun: deNoun, adj: deAdj },
   es: { verb: esVerb, noun: esNoun, adj: esAdj },
   fr: { verb: frVerb, noun: frNoun, adj: frAdj },
+  en,
+  la,
+  it,
+  pt,
+  ru,
+  sv,
 };

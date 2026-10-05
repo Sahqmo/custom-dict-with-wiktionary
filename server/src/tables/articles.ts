@@ -55,3 +55,30 @@ export function frArticle(ctx: Ctx, word: string, _row: string, col: string) {
   };
   return uniqJoin(g.map(one));
 }
+
+/* ---------- 이탈리아어: il/lo/l'/la, i/gli/le ---------- */
+
+// 단수 남성 lo / 복수 gli: s+자음, z, gn, ps, pn, x, y 로 시작하는 단어. 모음 앞은 단수 l', 복수 gli. (h는 묵음)
+const IT_LO = /^(s[^aeiouh\W]|z|gn|ps|pn|x|y)/;
+
+export function itArticle(ctx: Ctx, word: string, _row: string, col: string) {
+  const g = ctx.genders;
+  if (!g.length) return undefined;
+  const w = plain(word);
+  const vowel = /^[aeiouh]/.test(w);
+  const lo = IT_LO.test(w);
+  const one = (x: string) => {
+    if (col === "Plural") return x === "m" ? (vowel || lo ? "gli" : "i") : x === "f" ? "le" : undefined;
+    if (x === "m") return vowel ? "l'" : lo ? "lo" : "il";
+    if (x === "f") return vowel ? "l'" : "la";
+    return undefined;
+  };
+  return uniqJoin(g.map(one));
+}
+
+/* ---------- 포르투갈어: o/a, os/as ---------- */
+
+export function ptArticle(ctx: Ctx, _word: string, _row: string, col: string) {
+  const plural = col === "Plural";
+  return uniqJoin(ctx.genders.map((x) => (x === "m" ? (plural ? "os" : "o") : x === "f" ? (plural ? "as" : "a") : undefined)));
+}

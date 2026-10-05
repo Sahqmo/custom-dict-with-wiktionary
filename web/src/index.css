@@ -13,6 +13,7 @@
   --line: #e6e6ee;
   --shadow: 0 1px 2px rgb(20 20 40 / 0.04), 0 4px 16px rgb(20 20 40 / 0.04);
   --accent: var(--accent-l, #4f46e5);
+  --accent-2: var(--accent-2-l, #c026d3); /* 포인트 컬러와 어울리는 짝 색 (settings.ts partnerColor) */
   --on-accent: var(--on-accent-l, #ffffff);
   --danger: #d63b3b;
   color-scheme: light;
@@ -28,6 +29,7 @@
   --line: #2a2a36;
   --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.25);
   --accent: var(--accent-d, #8f95ff);
+  --accent-2: var(--accent-2-d, #e879f9);
   --on-accent: var(--on-accent-d, #111111);
   --danger: #ff7b7b;
   color-scheme: dark;
@@ -43,6 +45,7 @@
     --line: #2a2a36;
     --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 4px 16px rgb(0 0 0 / 0.25);
     --accent: var(--accent-d, #8f95ff);
+    --accent-2: var(--accent-2-d, #e879f9);
     --on-accent: var(--on-accent-d, #111111);
     --danger: #ff7b7b;
     color-scheme: dark;
@@ -52,9 +55,14 @@
 /* 포인트 컬러에서 파생되는 색 (모든 범위에서 공통) */
 :root,
 [data-scheme] {
-  --accent-soft: color-mix(in srgb, var(--accent) 13%, var(--surface));
-  --accent-line: color-mix(in srgb, var(--accent) 38%, var(--line));
-  --ring: color-mix(in srgb, var(--accent) 35%, transparent);
+  /* 연한 배경/윤곽선/포커스 링은 OKLab에서 섞는다 — sRGB에서 섞으면 선명한 초록/주황이 회색빛으로 탁해진다 */
+  --accent-soft: color-mix(in oklab, var(--accent) 13%, var(--surface));
+  --accent-line: color-mix(in oklab, var(--accent) 38%, var(--line));
+  --ring: color-mix(in oklab, var(--accent) 35%, transparent);
+  /* 연한 포인트 배경(--accent-soft) 위에 올리는 글자색. 포인트 컬러를 글자색(fg) 쪽으로 15% 섞어서
+     라이트에서는 살짝 어둡게, 다크에서는 살짝 밝게 → 어떤 포인트 컬러에서도 알약 글자 대비가 4.5:1 안팎 이상으로 보강된다.
+     (선명한 포인트 컬러 자체는 그대로 두고 글자에만 적용하므로 초록/파랑/앰버가 칙칙해지지 않는다.) */
+  --accent-ink: color-mix(in oklab, var(--accent) 85%, var(--fg));
   --radius: 14px;
   --radius-sm: 9px;
 }

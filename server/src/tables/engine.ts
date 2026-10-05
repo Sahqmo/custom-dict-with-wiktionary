@@ -37,6 +37,10 @@ export type TableSpec = {
   lemmaCell?: [number, number];
   /** 한 칸에 한 단어짜리 형태가 있으면 여러 단어 형태(스페인어 재귀형 "me hago")는 뺀다 */
   preferSingle?: boolean;
+  /** 이 태그가 하나라도 붙은 형태는 이 표에서 뺀다 (예: 러시아어 옛 표기 dated). 빠진 형태는 "그 밖의 형태"에 남는다. */
+  exclude?: string[];
+  /** 강세 부호(U+0301)만 다른 형태는 한 칸에 하나만 둔다, 강세 있는 쪽을 남긴다 (러시아어 слов / сло́в) */
+  dedupeStress?: boolean;
   /** 셀의 정관사 (명사 표). 성/격/수에 따라 결정한다. */
   article?: (ctx: Ctx, word: string, rowLabel: string, colLabel: string) => string | undefined;
   /** 형태를 어간/어미로 쪼개 굴절하는 부분을 표시한다 (동사 표) */
@@ -53,20 +57,29 @@ export type OutTable = { title: string; group?: string; cols: string[]; rows: { 
 const VARIANT = new Set([
   "rare", "obsolete", "archaic", "dated", "poetic", "colloquial", "dialectal", "regional", "literary",
   "nonstandard", "uncommon", "proscribed", "before-vowel", "Switzerland", "Austria", "Germany", "Liechtenstein",
+  "Brazil", "Portugal", "animate", "inanimate", // 러시아어 대격: 같은 칸에 유정/무정 형태가 함께 나온다
 ]);
 
 const NOTE_LABEL: Record<string, string> = { "before-vowel": "before vowel" };
+
+const unstress = (s: string) => s.replace(/́/g, "");
 
 // 발음기호가 활용형처럼 섞여 들어오는 경우(예: 프랑스어 "paʁl")를 걸러낸다.
 const IPA_CHARS = /[ɐ-ʯ]/;
 
 export function buildTables(word: string, forms: FormRow[], specs: TableSpec[], ctx: Ctx) {
-  const clean = forms.filter((f) => !IPA_CHARS.test(f.form));
+  // 'canonical'은 표제어 자신의 표기(라틴어 amō, 러시아어 сло́во)라 표에도 "그 밖의 형태"에도 의미가 없다.
+  const clean = forms.filter((f) => !IPA_CHARS.test(f.form) && !f.tags.includes("canonical"));
   const parsed = clean.map((f) => {
     const core: string[] = [];
     const notes: string[] = [];
     for (const t of f.tags) (VARIANT.has(t) ? notes : core).push(t);
-    return { form: f.form, core: new Set(core), note: notes.map((n) => NOTE_LABEL[n] ?? n).join(", ") || undefined };
+    return {
+      form: f.form,
+      core: new Set(core),
+      raw: new Set(f.tags),
+      note: notes.map((n) => NOTE_LABEL[n] ?? n).join(", ") || undefined,
+    };
   });
 
   const tables: OutTable[] = [];
@@ -81,10 +94,20 @@ export function buildTables(word: string, forms: FormRow[], specs: TableSpec[], 
         const cell: Cell = [];
         if (spec.lemmaCell && spec.lemmaCell[0] === ri && spec.lemmaCell[1] === ci) cell.push({ form: word });
         parsed.forEach((p, i) => {
+          if (spec.exclude?.some((t) => p.raw.has(t))) return;
           for (const t of need) if (!p.core.has(t)) return;
           for (const t of p.core) if (!need.has(t) && !ignore.has(t)) return;
-          if (!cell.some((x) => x.form === p.form)) cell.push({ form: p.form, note: p.note });
           used.add(i);
+          if (cell.some((x) => x.form === p.form)) return;
+          if (spec.dedupeStress) {
+            const same = cell.findIndex((x) => unstress(x.form) === unstress(p.form));
+            if (same >= 0) {
+              // 강세 표시가 있는 쪽을 남긴다
+              if (unstress(cell[same].form) === cell[same].form && unstress(p.form) !== p.form) cell[same] = { form: p.form, note: p.note };
+              return;
+            }
+          }
+          cell.push({ form: p.form, note: p.note });
         });
 
         if (spec.preferSingle && cell.some((x) => !x.form.includes(" "))) {

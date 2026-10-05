@@ -32,7 +32,8 @@ CREATE TABLE entries(
   pos TEXT,
   etymology TEXT,
   etymology_number INTEGER,
-  head TEXT
+  head TEXT,
+  weight INTEGER NOT NULL DEFAULT 0  -- 뜻 개수(활용형/대체 표기 뜻 제외). 접두사 검색/자동완성에서 흔한 단어를 위로 올린다
 );
 CREATE TABLE senses(
   id INTEGER PRIMARY KEY,
@@ -65,6 +66,7 @@ CREATE TABLE meta(key TEXT PRIMARY KEY, value TEXT);
 INDEXES = """
 CREATE INDEX idx_entries_word ON entries(word);
 CREATE INDEX idx_entries_norm ON entries(norm_word, lang_code);
+CREATE INDEX idx_entries_lang_norm ON entries(lang_code, norm_word);
 CREATE INDEX idx_senses_entry ON senses(entry_id);
 CREATE INDEX idx_sounds_entry ON sounds(entry_id);
 CREATE INDEX idx_forms_form ON forms(form);
@@ -108,13 +110,9 @@ def convert(d, entry_id, sense_id):
     if ht:
         head = ht[0].get("expansion")
     ety = d.get("etymology_text") or None
-    entry = (
-        entry_id, word, normalize(word), d["lang_code"], d["lang"], d.get("pos"),
-        ety, d.get("etymology_number"), head,
-    )
-
     senses, rels = [], []
     seen_rel = set()
+    real_senses = 0  # 활용형/대체 표기 뜻("…의 복수형")은 인기 지표(weight)에서 뺀다
 
     def add_rel(rtype, target):
         key = (rtype, target)
@@ -137,6 +135,8 @@ def convert(d, entry_id, sense_id):
                 json.dumps(exs, ensure_ascii=False) if exs else None,
             ))
             sense_id += 1
+            if not (s.get("form_of") or s.get("alt_of")):
+                real_senses += 1
         for key in ("form_of", "alt_of"):
             for t in s.get(key, ()):
                 add_rel(key, t.get("word"))
@@ -146,6 +146,15 @@ def convert(d, entry_id, sense_id):
     for key in RELATION_KEYS:
         for t in d.get(key, ()):
             add_rel(key, t.get("word"))
+    # soft-redirect 항목은 뜻 없이 목적지(redirects)만 가진다 — 항목 페이지에서 따라가려면 보존해야 한다.
+    for t in d.get("redirects", ()):
+        if isinstance(t, str):
+            add_rel("redirect", t)
+
+    entry = (
+        entry_id, word, normalize(word), d["lang_code"], d["lang"], d.get("pos"),
+        ety, d.get("etymology_number"), head, real_senses,
+    )
 
     sounds = []
     for s in d.get("sounds", ()):
@@ -228,7 +237,7 @@ def main():
     buf = {"e": [], "s": [], "so": [], "f": [], "r": []}
 
     def flush():
-        db.executemany("INSERT INTO entries VALUES(?,?,?,?,?,?,?,?,?)", buf["e"])
+        db.executemany("INSERT INTO entries VALUES(?,?,?,?,?,?,?,?,?,?)", buf["e"])
         db.executemany("INSERT INTO senses VALUES(?,?,?,?,?)", buf["s"])
         db.executemany("INSERT INTO sounds VALUES(?,?,?,?,?)", buf["so"])
         db.executemany("INSERT INTO forms VALUES(?,?,?,?)", buf["f"])
@@ -272,7 +281,11 @@ def main():
     db.executescript(INDEXES)
     print("FTS 인덱스 생성 중... (오래 걸립니다)")
     db.executescript(FTS)
+    print("언어 목록 집계 중...")
+    db.execute("CREATE TABLE langs(lang_code TEXT PRIMARY KEY, lang TEXT NOT NULL, count INTEGER NOT NULL)")
+    db.execute("INSERT INTO langs SELECT lang_code, MIN(lang), COUNT(*) FROM entries GROUP BY lang_code")
     db.execute("INSERT INTO meta VALUES('source', ?)", (os.path.basename(args.src),))
+    db.execute("INSERT INTO meta VALUES('weight_v', '2')")
     db.execute("INSERT INTO meta VALUES('built_at', datetime('now'))")
     db.commit()
     db.execute("ANALYZE")

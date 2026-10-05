@@ -97,6 +97,7 @@
 
 /* ───────── 검색창 ───────── */
 .searchbar {
+  position: relative; /* 자동완성 목록(.suggest)의 기준 */
   display: flex;
   align-items: center;
   gap: 6px;
@@ -220,11 +221,66 @@ main {
   line-height: 1.15;
 }
 
+/*
+  살아 움직이는 그라데이션: 색 A(포인트 컬러)와 색 B(어울리는 짝 색)의 위치와 각도가 서로 다른 주기로 천천히 흐른다.
+  @property로 각도/위치를 "보간 가능한 값"으로 등록해야 키프레임 사이를 부드럽게 오간다 (등록하지 않으면 뚝뚝 끊긴다).
+  세 주기(11s/7s/9s)가 서로 맞물리지 않아 같은 모양이 좀처럼 반복되지 않는다 — 그래서 기계적인 왕복이 아니라 유기적으로 보인다.
+  A는 -50%~38%, B는 62%~150%에서 움직이고 둘 사이 간격은 항상 24%p 이상이라 두 색이 항상 글자 안에 보인다.
+*/
+@property --g-angle {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 100deg;
+}
+
+@property --g-a {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: -5%;
+}
+
+@property --g-b {
+  syntax: '<percentage>';
+  inherits: false;
+  initial-value: 105%;
+}
+
 .grad {
-  background: linear-gradient(100deg, var(--accent), color-mix(in srgb, var(--accent) 45%, #ec4899));
+  background-image: linear-gradient(var(--g-angle), var(--accent) var(--g-a), var(--accent-2) var(--g-b));
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
+  animation:
+    grad-angle 11s ease-in-out infinite,
+    grad-a 7s ease-in-out infinite,
+    grad-b 9s ease-in-out infinite;
+}
+
+/* 값의 폭을 넓게: 각도는 거의 수평(55°)에서 가파른 대각선(165°)까지, 색 A는 -50%~38%, 색 B는 62%~150%.
+   A와 B 사이 간격은 항상 24%p 이상이라 어느 순간에도 두 색이 모두 보인다. */
+@keyframes grad-angle {
+  0%, 100% { --g-angle: 70deg; }
+  25% { --g-angle: 160deg; }
+  50% { --g-angle: 55deg; }
+  75% { --g-angle: 145deg; }
+}
+
+@keyframes grad-a {
+  0%, 100% { --g-a: -10%; }
+  33% { --g-a: 38%; }
+  66% { --g-a: -50%; }
+}
+
+@keyframes grad-b {
+  0%, 100% { --g-b: 110%; }
+  40% { --g-b: 62%; }
+  75% { --g-b: 150%; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .grad {
+    animation: none;
+  }
 }
 
 /* 돌아가며 바뀌는 "word" — 자기 자리에서 위로 밀려 올라가며 교체된다. 클릭하면 그 단어의 항목 페이지로 간다. */
@@ -290,7 +346,7 @@ main {
   padding: 1px 10px;
   border-radius: 999px;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-ink);
   font-size: 13px;
   font-weight: 600;
   letter-spacing: 0;
@@ -467,7 +523,7 @@ main {
 
 .badge {
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-ink);
 }
 
 .code {
@@ -515,7 +571,7 @@ main {
   padding: 2px 12px;
   border-radius: 999px;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-ink);
   font-weight: 700;
   text-transform: capitalize;
 }
@@ -577,7 +633,7 @@ audio {
   margin-top: 2px;
   border-radius: 7px;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-ink);
   font-size: 12px;
   font-weight: 700;
 }
@@ -984,6 +1040,19 @@ details > summary:hover {
   border-color: var(--danger);
 }
 
+.contrast {
+  margin: -4px 0 12px;
+  font-size: 12.5px;
+}
+
+.contrast.ok {
+  color: var(--muted);
+}
+
+.contrast.warn {
+  color: var(--danger);
+}
+
 .preview {
   background: var(--bg);
   color: var(--fg);
@@ -1025,13 +1094,20 @@ details > summary:hover {
   letter-spacing: -0.02em;
 }
 
+.pv-grad {
+  margin: 8px 0 2px;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+}
+
 .pv-pos {
   display: inline-block;
   margin: 6px 0 2px;
   padding: 0 10px;
   border-radius: 999px;
   background: var(--accent-soft);
-  color: var(--accent);
+  color: var(--accent-ink);
   font-size: 12px;
   font-weight: 700;
 }
@@ -1088,6 +1164,292 @@ details > summary:hover {
   background: var(--surface-2);
   border-radius: 10px;
   font-size: 15px;
+}
+
+/* ───────── 자동완성 / 단축키 힌트 ───────── */
+.suggest {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 12px 32px rgb(0 0 0 / 0.14);
+  max-height: min(60vh, 420px);
+  overflow-y: auto;
+  text-align: left;
+}
+
+.suggest li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 12px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.suggest li.on {
+  background: var(--accent-soft);
+}
+
+.suggest li.on .s-word {
+  color: var(--accent-ink);
+}
+
+.s-word {
+  font-size: 16px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.s-meta {
+  display: inline-flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  flex: none;
+}
+
+.kbd {
+  flex: none;
+  align-self: center;
+  min-width: 22px;
+  padding: 1px 7px;
+  border: 1px solid var(--line);
+  border-bottom-width: 2px;
+  border-radius: 6px;
+  background: var(--surface-2);
+  color: var(--muted);
+  font: 600 12px/1.5 ui-monospace, 'Cascadia Mono', Consolas, monospace;
+  text-align: center;
+  cursor: default;
+}
+
+/* ───────── 즐겨찾기 별 / 홈 확장 ───────── */
+.star {
+  display: grid;
+  place-items: center;
+  align-self: center;
+  width: 38px;
+  height: 38px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s, transform 0.15s;
+}
+
+.star svg {
+  width: 20px;
+  height: 20px;
+}
+
+.star:hover {
+  color: var(--accent);
+  border-color: var(--accent-line);
+  transform: scale(1.06);
+}
+
+.star.on {
+  color: var(--accent-ink);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.chip.action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  color: var(--accent-ink);
+  border-color: var(--accent-line);
+  background: var(--accent-soft);
+}
+
+.chip.action svg {
+  width: 15px;
+  height: 15px;
+}
+
+.chip.action:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--accent) 20%, var(--surface));
+}
+
+.chip.action:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.chip.more {
+  color: var(--muted);
+  border-style: dashed;
+}
+
+.recent {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  margin-top: 26px;
+  font-size: 13px;
+}
+
+.recent .chips {
+  justify-content: center;
+}
+
+/* ───────── 내 단어 ───────── */
+.library {
+  max-width: 760px;
+  margin: 0 auto;
+}
+
+.library h1 {
+  margin: 0 0 4px;
+  font-size: 30px;
+}
+
+.lib-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.lib-head .segmented button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lib-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.lib-row .row {
+  flex: 1;
+  min-width: 0;
+}
+
+.when {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.icon-btn.small {
+  width: 30px;
+  height: 30px;
+  font-size: 13px;
+  flex: none;
+  opacity: 0.55;
+}
+
+.lib-row:hover .icon-btn.small,
+.icon-btn.small:focus-visible {
+  opacity: 1;
+}
+
+/* ───────── 설정: 자주 쓰는 언어 ───────── */
+.pref-chips {
+  margin-bottom: 12px;
+}
+
+.chip.removable {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding-right: 4px;
+}
+
+.chip.removable small {
+  color: var(--muted);
+}
+
+.chip.removable button {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--muted);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.chip.removable button:hover {
+  background: var(--surface-2);
+  color: var(--danger);
+}
+
+.pref-add {
+  position: relative;
+  max-width: 420px;
+}
+
+.pref-add input {
+  width: 100%;
+}
+
+.pref-list {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 4px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.pref-list button {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  width: 100%;
+  padding: 7px 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.pref-list button:hover,
+.pref-list button:focus-visible {
+  background: var(--accent-soft);
+}
+
+.pref-list small {
+  color: var(--muted);
+}
+
+.pref-none {
+  margin: 6px 2px 0;
+  font-size: 13px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .star {
+    transition: none;
+  }
 }
 
 /* ───────── 푸터 ───────── */
