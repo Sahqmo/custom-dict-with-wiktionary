@@ -151,7 +151,7 @@ const REL_POINTER = /thesaurus:|category:|^see\s.*\b(wikipedia|terms)\b/i;
 const qExists = db.prepare("SELECT 1 FROM entries WHERE lang_code = ? AND norm_word = ? LIMIT 1");
 const existsCache = new Map<string, boolean>();
 const EXISTS_CACHE_MAX = 50_000;
-function entryExists(lang: string, word: string): boolean {
+export function entryExists(lang: string, word: string): boolean {
   const key = `${lang}	${word}`;
   let hit = existsCache.get(key);
   if (hit === undefined) {

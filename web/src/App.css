@@ -32,6 +32,8 @@
   max-width: 980px;
   margin: 0 auto;
   padding: 10px 20px;
+  /* 검색창이 있는 페이지와 없는 홈(큰 검색창이 본문에 있다)의 머리글 높이를 같게 맞춘다: 검색창 50px + 위아래 여백 */
+  min-height: 70px;
   display: flex;
   align-items: center;
   gap: 14px;
@@ -54,6 +56,7 @@
 .top-inner .searchbar {
   flex: 1 1 520px;
   margin-right: auto;
+  height: 50px; /* 입력창 글꼴/언어에 따라 높이가 소수점으로 흔들리지 않게 고정 */
 }
 
 .top-inner .brand {
@@ -74,7 +77,9 @@
 
 .top-actions {
   display: flex;
+  align-items: center;
   gap: 4px;
+  margin-left: auto; /* 검색창이 없는 홈에서도 아이콘을 오른쪽 끝에 둔다 (로고 옆에 붙지 않게) */
 }
 
 .icon-btn {
@@ -93,6 +98,36 @@
   background: var(--surface-2);
   color: var(--fg);
   text-decoration: none;
+}
+
+/* 헤더의 글자 있는 버튼 (기초 단어): 작은 둥근 상자 */
+.hdr-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  margin-left: 4px;
+  padding: 0 12px 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.hdr-pill:hover {
+  background: var(--surface-2);
+  color: var(--fg);
+  text-decoration: none;
+}
+
+.hdr-pill[aria-current='page'] {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--accent-ink);
 }
 
 /* ───────── 검색창 ───────── */
@@ -372,7 +407,7 @@ main.home {
   flex-direction: column;
   justify-content: center;
   /* 정중앙(머리글/바닥글 보정 56px)과 예전 위치의 딱 중간. 화면이 클수록 위로 더 올린다 */
-  padding-top: 56px;
+  padding-top: 42px;
   padding-bottom: calc(40px + max(0px, 43vh - 277px));
 }
 
@@ -1769,9 +1804,14 @@ footer a:hover {
     padding: 10px 14px;
   }
 
+  .top-inner {
+    min-height: 0; /* 좁은 화면은 검색창이 줄바꿈되어 높이가 내용에 따라 정해진다 */
+  }
+
   .top-inner .searchbar {
     order: 3;
     flex-basis: 100%;
+    height: auto;
   }
 
   .brand {
@@ -1847,5 +1887,213 @@ footer a:hover {
   .best-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px;
+  }
+}
+
+/* ───────── Swadesh 기초 단어 ───────── */
+.swadesh {
+  max-width: 860px;
+  margin: 0 auto;
+}
+
+.swadesh h1 {
+  margin: 0 0 6px;
+  font-size: clamp(24px, 4vw, 32px);
+  letter-spacing: -0.03em;
+}
+
+.swadesh h1 .code {
+  vertical-align: middle;
+}
+
+.swa-filter {
+  width: 100%;
+  margin: 14px 0 6px;
+  padding: 11px 16px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 15px;
+}
+
+.swa-filter:focus {
+  border-color: var(--accent);
+  outline: 0;
+  box-shadow: 0 0 0 3px var(--ring);
+}
+
+.swa-notice {
+  margin: 14px 2px;
+}
+
+.swa-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(190px, 1fr));
+  gap: 10px;
+}
+
+.swa-lang {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  color: inherit;
+  text-decoration: none;
+  transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.swa-lang:hover {
+  text-decoration: none;
+  transform: translateY(-2px);
+  border-color: var(--accent-line);
+  box-shadow: 0 8px 22px rgb(0 0 0 / 0.1);
+}
+
+.swa-lang-name {
+  font-weight: 700;
+  color: var(--accent-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.swa-lang-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.swa-back {
+  display: inline-block;
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  text-decoration: none;
+}
+
+.swa-back:hover {
+  color: var(--accent-ink);
+  text-decoration: none;
+}
+
+.swa-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.swa-sum {
+  margin: 4px 0 14px;
+  font-size: 13.5px;
+}
+
+.swa-card {
+  padding: 4px 6px;
+}
+
+.swa-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.swa-table th {
+  position: sticky;
+  top: 57px;
+  z-index: 1;
+  padding: 9px 12px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.swa-table td {
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--line);
+  vertical-align: top;
+}
+
+.swa-table tr:last-child td {
+  border-bottom: 0;
+}
+
+.swa-n {
+  width: 44px;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+}
+
+.swa-meaning {
+  width: 34%;
+  color: var(--muted);
+  font-size: 14px;
+}
+
+.swa-words {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.swa-word {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--accent-ink);
+}
+
+.swa-word.dead {
+  color: var(--muted);
+  font-weight: 500;
+  opacity: 0.7;
+}
+
+.swa-roman,
+.swa-tags {
+  margin-left: 6px;
+  color: var(--muted);
+  font-size: 12.5px;
+}
+
+.swa-tags {
+  font-style: italic;
+}
+
+.swa-empty .swa-none,
+.swa-none {
+  color: var(--muted);
+  opacity: 0.5;
+}
+
+@media (max-width: 640px) {
+  .swa-meaning {
+    width: auto;
+  }
+
+  .swa-table th {
+    top: 0;
+  }
+
+  .swa-table td {
+    padding: 8px 8px;
   }
 }

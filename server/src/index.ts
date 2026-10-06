@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { normalize } from "./normalize.js";
 import { dailyEntries, getEntry, getLangs, randomEntry, reverseSearch, search } from "./queries.js";
+import { swadeshLangs, swadeshList } from "./swadesh.js";
 import { favorites, history, type Saved } from "./userdb.js";
 
 const app = Fastify({ logger: { level: "warn" } });
@@ -68,6 +69,15 @@ app.get<{ Querystring: { word?: string; lang?: string } }>("/api/entry", async (
 app.get<{ Querystring: { q?: string } }>("/api/reverse", async (req) => (gone(req) ? [] : reverseSearch(req.query.q ?? "")));
 
 app.get("/api/langs", async () => getLangs());
+
+// Swadesh 기초 단어 목록 (data/swadesh.json이 없으면 503)
+const NO_SWADESH = { error: "Swadesh 데이터가 없습니다. python scripts/extract_swadesh.py 와 scripts/build_swadesh.py 를 실행하세요." };
+app.get("/api/swadesh", async (_req, reply) => swadeshLangs() ?? reply.code(503).send(NO_SWADESH));
+app.get<{ Params: { code: string } }>("/api/swadesh/:code", async (req, reply) => {
+  const r = swadeshList(req.params.code);
+  if (r === null) return reply.code(503).send(NO_SWADESH);
+  return r ?? reply.code(404).send({ error: "그 언어의 목록이 없습니다" });
+});
 
 /* ---------- 내 단어: 즐겨찾기 / 기록 (data/user.sqlite) ---------- */
 

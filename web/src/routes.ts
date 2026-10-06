@@ -3,3 +3,4 @@ export const hrefEntry = (lang: string, word: string) => `#/entry/${lang}/${enco
 export const hrefSearch = (q: string, lang: string) => `#/search/${new URLSearchParams({ q, ...(lang && { lang }) })}`
 export const hrefReverse = (q: string) => `#/reverse/${new URLSearchParams({ q })}`
 export const HREF_LIBRARY = '#/library'
+export const hrefSwadesh = (lang?: string) => (lang ? `#/swadesh/${lang}` : '#/swadesh')

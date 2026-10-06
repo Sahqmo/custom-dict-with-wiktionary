@@ -13,7 +13,7 @@ const userDb = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'wikt-test-')), '
 const npm = process.platform === 'win32' ? 'npm.cmd' : 'npm'
 const npx = process.platform === 'win32' ? 'npx.cmd' : 'npx'
 
-const all = ['api', 'e2e', 'amo', 'i18n', 'features']
+const all = ['api', 'e2e', 'amo', 'i18n', 'features', 'swadesh']
 const wanted = process.argv.slice(2)
 const files = wanted.length ? wanted : all
 

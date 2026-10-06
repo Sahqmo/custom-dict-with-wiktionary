@@ -85,7 +85,7 @@ p = await newPage({ prefs: ['de', 'fr', 'ko'] })
 await open(p, '#/')
 const home = await p.evaluate(() => {
   const r = document.querySelector('.hero').getBoundingClientRect()
-  return { top: r.top, bottom: r.bottom, vh: innerHeight, chips: [...document.querySelectorAll('.example-chips a.chip')].map((a) => decodeURIComponent(a.getAttribute('href'))) }
+  return { top: r.top, bottom: r.bottom, vh: innerHeight, chips: [...document.querySelectorAll('.example-chips a.chip:not(.action)')].map((a) => decodeURIComponent(a.getAttribute('href'))) }
 })
 check('홈: 가운데 묶음이 화면 안에 있고 윗부분에 치우치지 않는다', home.top > 100 && home.bottom < home.vh, `top ${Math.round(home.top)}, bottom ${Math.round(home.bottom)}`)
 check('홈: 오늘의 단어 칩 = 자주 쓰는 언어 3개', home.chips.length === 3 && home.chips.map((h) => h.split('/')[2]).join() === 'de,fr,ko', home.chips.join(' '))

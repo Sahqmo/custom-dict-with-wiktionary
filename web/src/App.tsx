@@ -5,8 +5,10 @@ import LangPicker from './LangPicker'
 import LibraryPage from './LibraryPage'
 import { loadLibrary, recordVisit, toggleFavorite, useLibrary } from './library'
 import RotatingWord from './RotatingWord'
-import { HREF_LIBRARY, hrefEntry, hrefReverse, hrefSearch } from './routes'
+import { HREF_LIBRARY, hrefEntry, hrefReverse, hrefSearch, hrefSwadesh } from './routes'
 import SettingsPage from './SettingsPage'
+import { SwadeshIndex, SwadeshLangPage } from './SwadeshPage'
+import { useAsync } from './useAsync'
 import { effectiveScheme, getSettings, updateSettings, useSettings } from './settings'
 import './App.css'
 
@@ -14,6 +16,7 @@ type Route =
   | { page: 'home' }
   | { page: 'settings' }
   | { page: 'library' }
+  | { page: 'swadesh'; lang: string }
   | { page: 'search'; q: string; lang: string }
   | { page: 'reverse'; q: string }
   | { page: 'entry'; lang: string; word: string }
@@ -24,6 +27,7 @@ function parseHash(): Route {
   if (kind === 'entry' && rest.length >= 2) return { page: 'entry', lang: rest[0], word: rest.slice(1).join('/') }
   if (kind === 'settings') return { page: 'settings' }
   if (kind === 'library') return { page: 'library' }
+  if (kind === 'swadesh') return { page: 'swadesh', lang: rest[0] ?? '' }
   if (kind === 'search') {
     const p = new URLSearchParams(rest.join('/'))
     return { page: 'search', q: p.get('q') ?? '', lang: p.get('lang') ?? '' }
@@ -45,34 +49,6 @@ function useRoute() {
   return route
 }
 
-/**
- * 비동기 데이터 훅. 결과에 "어느 요청(deps)의 것인지"를 붙여 둔다.
- * 예전에는 요청이 바뀌어도 이전 data를 loading 플래그가 켜질 때까지(=렌더 한 번 뒤의 effect) 그대로 돌려줘서,
- * 새 단어로 이동한 첫 렌더에서 "이전 단어의 데이터"를 "새 단어의 결과"로 착각하는 경쟁 상태가 있었다.
- * 지금은 deps가 달라진 즉시 loading=true, data=undefined 로 보인다.
- */
-function useAsync<T>(fn: (signal: AbortSignal) => Promise<T>, deps: unknown[]) {
-  const key = JSON.stringify(deps)
-  type S = { key: string; data?: T; error?: string; loading: boolean }
-  const [state, setState] = useState<S>({ key, loading: true })
-  useEffect(() => {
-    let alive = true
-    // deps가 바뀌거나 화면을 떠나면 진행 중인 요청을 취소한다 (빠르게 검색어를 바꿀 때 낡은 요청이 쌓이지 않게)
-    const ctl = new AbortController()
-    setState({ key, loading: true })
-    fn(ctl.signal).then(
-      (data) => alive && setState({ key, data, loading: false }),
-      (e) => alive && setState({ key, error: String(e), loading: false }),
-    )
-    return () => {
-      alive = false
-      ctl.abort()
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, deps)
-  return state.key === key ? state : { key, loading: true }
-}
-
 /* ---------------------------------- 아이콘 ---------------------------------- */
 
 const Icon = ({ d, label, filled }: { d: string; label?: string; filled?: boolean }) => (
@@ -84,6 +60,7 @@ const ICON = {
   star: 'M12 2.5l2.9 6 6.6.9-4.8 4.6 1.2 6.5L12 17.4l-5.9 3.1 1.2-6.5L2.5 9.4l6.6-.9z',
   bookmark: 'M6 3h12a1 1 0 0 1 1 1v17l-7-4-7 4V4a1 1 0 0 1 1-1z',
   shuffle: 'M16 3h5v5M4 20L21 3M21 16v5h-5M15 15l6 6M4 4l5 5',
+  list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
   search: 'M11 19a8 8 0 1 1 0-16 8 8 0 0 1 0 16zM21 21l-4.3-4.3',
   sun: 'M12 17a5 5 0 1 0 0-10 5 5 0 0 0 0 10zM12 1v2M12 21v2M4.2 4.2l1.4 1.4M18.4 18.4l1.4 1.4M1 12h2M21 12h2M4.2 19.8l1.4-1.4M18.4 5.6l1.4-1.4',
   moon: 'M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z',
@@ -193,6 +170,10 @@ export default function App() {
             <a className="icon-btn" href="#/settings" title={t('set.title')} aria-label={t('set.title')}>
               <Icon d={ICON.gear} />
             </a>
+            <a className="hdr-pill" href={hrefSwadesh()} title={t('swa.title')} aria-current={route.page === 'swadesh' ? 'page' : undefined}>
+              <Icon d={ICON.list} />
+              <span>{t('swa.button')}</span>
+            </a>
           </div>
         </div>
       </header>
@@ -201,6 +182,7 @@ export default function App() {
         {route.page === 'home' && <Home route={route} langs={langs.data ?? []} />}
         {route.page === 'settings' && <SettingsPage />}
         {route.page === 'library' && <LibraryPage />}
+        {route.page === 'swadesh' && (route.lang ? <SwadeshLangPage lang={route.lang} /> : <SwadeshIndex />)}
         {route.page === 'search' && <SearchResults key={`${route.q}\t${route.lang}`} q={route.q} lang={route.lang} langs={langs.data ?? []} />}
         {route.page === 'reverse' && <ReverseResults q={route.q} />}
         {route.page === 'entry' && <EntryPage lang={route.lang} word={route.word} />}

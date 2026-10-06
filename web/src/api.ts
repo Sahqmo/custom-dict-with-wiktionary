@@ -61,6 +61,10 @@ export type Saved = { lang_code: string; lang: string; word: string; at: number 
 
 export type RandomPick = { word: string; lang_code: string; lang: string; pos: string | null }
 
+export type SwadeshLang = { lang_code: string; lang: string; filled: number; count: number }
+export type SwadeshWord = { word: string; roman?: string; tags?: string; exists: boolean }
+export type SwadeshItem = { n: number; label: string; core: boolean; words: SwadeshWord[] }
+
 async function request<T>(
   method: 'GET' | 'PUT' | 'POST' | 'DELETE',
   path: string,
@@ -89,6 +93,9 @@ export const api = {
   reverse: (q: string, signal?: AbortSignal) => get<ReverseHit[]>('reverse', { q }, signal),
   entry: (word: string, lang: string, signal?: AbortSignal) => get<Entry[]>('entry', { word, lang }, signal),
   langs: (signal?: AbortSignal) => get<Lang[]>('langs', {}, signal),
+  swadeshLangs: (signal?: AbortSignal) => get<{ total: number; langs: SwadeshLang[] }>('swadesh', {}, signal),
+  swadeshList: (lang: string, signal?: AbortSignal) =>
+    get<{ lang_code: string; lang: string; total: number; filled: number; items: SwadeshItem[] }>(`swadesh/${encodeURIComponent(lang)}`, {}, signal),
 
   favorites: () => get<Saved[]>('favorites'),
   addFavorite: (lang: string, word: string) => request('PUT', 'favorites', { body: { lang, word } }),

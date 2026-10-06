@@ -46,6 +46,17 @@ UI 개발 중에는 `server`를 띄운 채 `web`에서 `npm run dev`를 실행�
 
 Windows에서는 `start.bat`(UI 빌드 + 서버 실행)과 `dev.bat`(저장하면 서버 자동 재시작 + UI 핫 리로드, http://127.0.0.1:5173)을 쓸 수 있다.
 
+### Swadesh 데이터 만들기 (기초 단어 페이지)
+
+기초 단어 페이지(`#/swadesh`)는 영어 Wiktionary 영어 항목의 **번역표**(Swadesh 207 단어: water, fire, to drink …)를 쓴다. ingest는 번역표를 버리므로 원본 덤프를 한 번 더 훑는다.
+
+```
+python scripts/extract_swadesh.py    # 약 2분. data/raw/swadesh_en.jsonl 생성 (원본 덤프 필요)
+python scripts/build_swadesh.py      # 몇 초. data/swadesh.json 생성 (사전 DB의 언어만 남김)
+```
+
+`data/swadesh.json`이 없으면 서버는 정상 동작하고 이 페이지만 안내 문구를 보여 준다. 항목 정의(어느 영어 뜻을 쓸지)는 `scripts/swadesh_items.py`.
+
 ### 테스트
 
 ```
