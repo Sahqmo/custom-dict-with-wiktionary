@@ -19,8 +19,13 @@ const codes = (v: unknown) =>
 
 /* ---------- 사전 ---------- */
 
+// 화면이 요청을 취소(AbortController)하면 소켓이 닫힌다. DB 조회는 동기라 도중에 멈출 수 없지만,
+// 줄 서 있다가 아직 시작하지 않은 요청은 일을 건너뛴다 (빠르게 타이핑할 때 낡은 자동완성 요청이 쌓이지 않게).
+const gone = (req: { socket: { destroyed: boolean } }) => req.socket.destroyed;
+
 app.get<{ Querystring: { q?: string; lang?: string; pos?: string; prefer?: string } }>("/api/search", async (req) => {
   const { q = "", lang, pos, prefer } = req.query;
+  if (gone(req)) return [];
   return search(q, { lang: lang || undefined, pos: pos || undefined, prefer: new Set(codes(prefer)) });
 });
 
@@ -31,7 +36,7 @@ app.get<{ Querystring: { q?: string; lang?: string; pos?: string; prefer?: strin
 const SUGGEST_MAX = 8;
 app.get<{ Querystring: { q?: string; lang?: string; prefer?: string } }>("/api/suggest", async (req) => {
   const { q = "", lang, prefer } = req.query;
-  if (q.trim().length === 0) return [];
+  if (q.trim().length === 0 || gone(req)) return [];
   const hits = search(q, { lang: lang || undefined, prefer: new Set(codes(prefer)), limit: 60, autocomplete: true });
   const groups = new Map<string, { hit: (typeof hits)[number]; langs: Set<string> }>();
   for (const h of hits) {
@@ -60,7 +65,7 @@ app.get<{ Querystring: { word?: string; lang?: string } }>("/api/entry", async (
   return getEntry(word, lang);
 });
 
-app.get<{ Querystring: { q?: string } }>("/api/reverse", async (req) => reverseSearch(req.query.q ?? ""));
+app.get<{ Querystring: { q?: string } }>("/api/reverse", async (req) => (gone(req) ? [] : reverseSearch(req.query.q ?? "")));
 
 app.get("/api/langs", async () => getLangs());
 

@@ -64,7 +64,7 @@ export type RandomPick = { word: string; lang_code: string; lang: string; pos: s
 async function request<T>(
   method: 'GET' | 'PUT' | 'POST' | 'DELETE',
   path: string,
-  { params = {}, body }: { params?: Record<string, string | undefined>; body?: unknown } = {},
+  { params = {}, body, signal }: { params?: Record<string, string | undefined>; body?: unknown; signal?: AbortSignal } = {},
 ): Promise<T> {
   const qs = new URLSearchParams()
   for (const [k, v] of Object.entries(params)) if (v) qs.set(k, v)
@@ -72,22 +72,23 @@ async function request<T>(
     method,
     headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
     body: body === undefined ? undefined : JSON.stringify(body),
+    signal,
   })
   if (!res.ok) throw new Error(`${path}: ${res.status}`)
   return res.json()
 }
 
-const get = <T>(path: string, params: Record<string, string | undefined> = {}) => request<T>('GET', path, { params })
+const get = <T>(path: string, params: Record<string, string | undefined> = {}, signal?: AbortSignal) => request<T>('GET', path, { params, signal })
 
 export const api = {
   /** prefer: 자주 쓰는 언어 코드 ("de,fr") — 같은 일치 단계에서 이 언어들을 먼저 보여 준다 */
-  search: (q: string, lang?: string, prefer?: string) => get<Hit[]>('search', { q, lang, prefer }),
-  suggest: (q: string, lang?: string, prefer?: string) => get<Suggestion[]>('suggest', { q, lang, prefer }),
+  search: (q: string, lang?: string, prefer?: string, signal?: AbortSignal) => get<Hit[]>('search', { q, lang, prefer }, signal),
+  suggest: (q: string, lang?: string, prefer?: string, signal?: AbortSignal) => get<Suggestion[]>('suggest', { q, lang, prefer }, signal),
   random: (langs?: string) => get<RandomPick>('random', { langs }),
-  daily: (date: string, langs?: string) => get<RandomPick[]>('daily', { date, langs }),
-  reverse: (q: string) => get<ReverseHit[]>('reverse', { q }),
-  entry: (word: string, lang: string) => get<Entry[]>('entry', { word, lang }),
-  langs: () => get<Lang[]>('langs'),
+  daily: (date: string, langs?: string, signal?: AbortSignal) => get<RandomPick[]>('daily', { date, langs }, signal),
+  reverse: (q: string, signal?: AbortSignal) => get<ReverseHit[]>('reverse', { q }, signal),
+  entry: (word: string, lang: string, signal?: AbortSignal) => get<Entry[]>('entry', { word, lang }, signal),
+  langs: (signal?: AbortSignal) => get<Lang[]>('langs', {}, signal),
 
   favorites: () => get<Saved[]>('favorites'),
   addFavorite: (lang: string, word: string) => request('PUT', 'favorites', { body: { lang, word } }),

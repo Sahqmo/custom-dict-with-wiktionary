@@ -51,19 +51,22 @@ function useRoute() {
  * 새 단어로 이동한 첫 렌더에서 "이전 단어의 데이터"를 "새 단어의 결과"로 착각하는 경쟁 상태가 있었다.
  * 지금은 deps가 달라진 즉시 loading=true, data=undefined 로 보인다.
  */
-function useAsync<T>(fn: () => Promise<T>, deps: unknown[]) {
+function useAsync<T>(fn: (signal: AbortSignal) => Promise<T>, deps: unknown[]) {
   const key = JSON.stringify(deps)
   type S = { key: string; data?: T; error?: string; loading: boolean }
   const [state, setState] = useState<S>({ key, loading: true })
   useEffect(() => {
     let alive = true
+    // deps가 바뀌거나 화면을 떠나면 진행 중인 요청을 취소한다 (빠르게 검색어를 바꿀 때 낡은 요청이 쌓이지 않게)
+    const ctl = new AbortController()
     setState({ key, loading: true })
-    fn().then(
+    fn(ctl.signal).then(
       (data) => alive && setState({ key, data, loading: false }),
       (e) => alive && setState({ key, error: String(e), loading: false }),
     )
     return () => {
       alive = false
+      ctl.abort()
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps)
@@ -128,7 +131,7 @@ function titleFor(r: Route): string {
 
 export default function App() {
   const route = useRoute()
-  const langs = useAsync(() => api.langs(), [])
+  const langs = useAsync((signal) => api.langs(signal), [])
   const settings = useSettings()
   const dark = effectiveScheme(settings.mode) === 'dark'
 
@@ -198,7 +201,7 @@ export default function App() {
         {route.page === 'home' && <Home route={route} langs={langs.data ?? []} />}
         {route.page === 'settings' && <SettingsPage />}
         {route.page === 'library' && <LibraryPage />}
-        {route.page === 'search' && <SearchResults q={route.q} lang={route.lang} />}
+        {route.page === 'search' && <SearchResults key={`${route.q}\t${route.lang}`} q={route.q} lang={route.lang} langs={langs.data ?? []} />}
         {route.page === 'reverse' && <ReverseResults q={route.q} />}
         {route.page === 'entry' && <EntryPage lang={route.lang} word={route.word} />}
       </main>
@@ -247,7 +250,7 @@ function Home({ route, langs }: { route: Route; langs: Lang[] }) {
   // 오늘의 단어: 자주 쓰는 언어마다 1개(없으면 전체에서 6개 언어), 매일 0시에 바뀐다
   const today = useToday()
   const prefer = settings.preferredLangs.join(',')
-  const daily = useAsync(() => api.daily(today, prefer || undefined), [today, prefer])
+  const daily = useAsync((signal) => api.daily(today, prefer || undefined, signal), [today, prefer])
   const examples = daily.data && daily.data.length ? daily.data : daily.error ? FALLBACK_EXAMPLES : []
 
   // 랜덤 단어: 자주 쓰는 언어가 있으면 그 안에서, 없으면 전체에서 (R 키와 같은 동작)
@@ -337,8 +340,9 @@ function SearchBar({ route, langs, large }: { route: Route; langs: Lang[]; large
       return
     }
     let alive = true
+    const ctl = new AbortController()
     const t = setTimeout(() => {
-      api.suggest(q.trim(), lang || undefined, prefer || undefined).then(
+      api.suggest(q.trim(), lang || undefined, prefer || undefined, ctl.signal).then(
         (d) => alive && (setSugs(d), setActive(-1)),
         () => alive && setSugs([]),
       )
@@ -346,6 +350,7 @@ function SearchBar({ route, langs, large }: { route: Route; langs: Lang[]; large
     return () => {
       alive = false
       clearTimeout(t)
+      ctl.abort()
     }
   }, [q, lang, mode, focused, prefer])
 
@@ -482,10 +487,26 @@ function Status({ loading, error, empty }: { loading: boolean; error?: string; e
   return <p className="muted status">{empty}</p>
 }
 
-function SearchResults({ q, lang }: { q: string; lang: string }) {
+/** 가장 유사한 단어 카드는 처음에 이만큼만 (4열 × 3줄) 보여 주고 나머지는 "더 보기"로 펼친다 */
+const BEST_FIRST = 12
+
+function SearchResults({ q, lang, langs }: { q: string; lang: string; langs: Lang[] }) {
   const prefer = useSettings().preferredLangs.join(',')
-  const { data, loading, error } = useAsync(() => api.search(q, lang || undefined, prefer || undefined), [q, lang, prefer])
+  const { data, loading, error } = useAsync((signal) => api.search(q, lang || undefined, prefer || undefined, signal), [q, lang, prefer])
   const groups = useMemo(() => groupBy(data ?? [], (h) => `${h.lang_code}\t${h.lang}`), [data])
+  const [showAll, setShowAll] = useState(false)
+
+  // 맨 위 "언어별 가장 유사한 단어": 각 언어 그룹의 첫 결과(서버가 가장 잘 맞는 순으로 준다), 사전에 단어가 많은 언어 순.
+  // 아래 목록에는 이 단어들을 뺀 나머지만 보여 준다. 한국어·일본어처럼 결과 언어가 하나뿐인 검색도 같은 모양으로 보여 준다.
+  const { best, rest } = useMemo(() => {
+    const size = new Map(langs.map((l) => [l.lang_code, l.count]))
+    const best = groups
+      .map(([, hits]) => hits[0])
+      .sort((a, b) => (size.get(b.lang_code) ?? 0) - (size.get(a.lang_code) ?? 0))
+    const top = new Set(best)
+    const rest = groups.map(([k, hits]) => [k, hits.filter((h) => !top.has(h))] as [string, Hit[]]).filter(([, hits]) => hits.length > 0)
+    return { best, rest }
+  }, [groups, langs])
 
   // 언어를 고르지 않은 1~2글자 검색은 정확히 일치하는 것만 찾는다 (서버가 접두사 검색을 건너뜀).
   const shortHint = !lang && q.trim().length < 3
@@ -513,7 +534,36 @@ function SearchResults({ q, lang }: { q: string; lang: string }) {
         {t('results.count', { q, n: data.length, g: groups.length })}
         {shortHint && ` · ${t('results.shortHint')}`}
       </p>
-      {groups.map(([k, hits]) => {
+      {best.length > 0 && (
+        <section className="best" aria-label={t('results.best')}>
+          <h2 className="sec-title">{t('results.best')}</h2>
+          <div className="best-grid">
+            {(showAll ? best : best.slice(0, BEST_FIRST)).map((h) => (
+              <a key={`${h.lang_code}\t${h.word}`} className="best-card" href={hrefEntry(h.lang_code, h.word)}>
+                <span className="bc-lang">
+                  {h.lang} <span className="code">{h.lang_code}</span>
+                </span>
+                <span className="bc-word">{h.word}</span>
+                <span className="meta">
+                  {h.pos.slice(0, 2).map((p) => (
+                    <span key={p} className="pill">
+                      {p}
+                    </span>
+                  ))}
+                  {matchLabel(h.match) && <span className="badge">{matchLabel(h.match)}</span>}
+                </span>
+              </a>
+            ))}
+          </div>
+          {!showAll && best.length > BEST_FIRST && (
+            <button type="button" className="best-more" onClick={() => setShowAll(true)}>
+              {t('results.showMore', { n: best.length - BEST_FIRST })}
+            </button>
+          )}
+          {rest.length > 0 && <h2 className="sec-title more">{t('results.more')}</h2>}
+        </section>
+      )}
+      {rest.map(([k, hits]) => {
         const [code, name] = k.split('\t')
         return (
           <section key={k} className="card">
@@ -545,7 +595,7 @@ function SearchResults({ q, lang }: { q: string; lang: string }) {
 }
 
 function ReverseResults({ q }: { q: string }) {
-  const { data, loading, error } = useAsync(() => api.reverse(q), [q])
+  const { data, loading, error } = useAsync((signal) => api.reverse(q, signal), [q])
   if (loading || error || !data?.length) return <Status loading={loading} error={error} empty={t('reverse.none', { q })} />
   return (
     <div className="results">
@@ -577,7 +627,7 @@ function WordLink({ lang, word }: { lang: string; word: string }) {
 }
 
 function EntryPage({ lang, word }: { lang: string; word: string }) {
-  const { data, loading, error } = useAsync(() => api.entry(word, lang), [lang, word])
+  const { data, loading, error } = useAsync((signal) => api.entry(word, lang, signal), [lang, word])
 
   // useAsync는 새 요청을 기다리는 동안 이전 data를 그대로 둔다. 그 낡은 data로 판단하면 엉뚱한 곳으로 이동/기록하므로
   // (예: amare → amō 로 가는 순간 낡은 data의 표제어 amare 와 비교해 amare 로 되돌려 버림) 로딩이 끝난 data만 쓴다.

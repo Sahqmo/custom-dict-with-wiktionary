@@ -1,0 +1,5 @@
+# 줄바꿈은 항상 LF (Windows에서도 같게 저장)
+* text=auto eol=lf
+*.bat text eol=crlf
+*.sqlite binary
+*.gz binary

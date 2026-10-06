@@ -46,6 +46,14 @@ UI 개발 중에는 `server`를 띄운 채 `web`에서 `npm run dev`를 실행�
 
 Windows에서는 `start.bat`(UI 빌드 + 서버 실행)과 `dev.bat`(저장하면 서버 자동 재시작 + UI 핫 리로드, http://127.0.0.1:5173)을 쓸 수 있다.
 
+### 테스트
+
+```
+cd tests && npm i && npm test        # api · e2e · amo · i18n · features 전부 (node run.mjs api features 처럼 골라 실행도 가능)
+```
+
+실행기가 화면을 빌드하고, **임시 사용자 DB**(즐겨찾기/기록)로 3057번 포트에 별도 서버를 띄워 돌린다. 실제 `data/user.sqlite`는 건드리지 않는다. 화면 테스트는 Edge/Chrome이 필요하다(`BROWSER` 환경변수로 경로 지정 가능).
+
 ### 구현 메모
 
 - **검색 동작** (`server/src/queries.ts`): 정확 일치 → 정규화 일치 → 활용형 → 접두사 순. 언어/품사 필터는 SQL 안에서 건다(예전에는 LIMIT 뒤에 걸러서 `stra`+독일어가 0개였다). 접두사는 뜻이 많은(`entries.weight`) 단어를 먼저 보여 준다. 언어를 고르지 않은 1~2글자 검색은 수백만 행을 훑어야 해서 접두사 단계를 건너뛴다. 독일어 전사(`Haeuser`→`Häuser`)는 결과가 없을 때, 또는 독일어 필터에서 한 번 더 시도한다.
